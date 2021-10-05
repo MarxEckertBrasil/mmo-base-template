@@ -1,0 +1,3 @@
+[submodule "lib/NihilNetwork"]
+	path = lib/NihilNetwork
+	url = https://github.com/MarxEckertBrasil/NihilNetwork
