@@ -5,7 +5,7 @@ to create a immersive game.
 
 In this project I use:
 
-MonoGame.net to make all the graphics. (https://github.com/MonoGame/MonoGame)
+Raylib to make all the graphics. (https://github.com/raysan5/raylib)
 
 Tiled to user create adventures. (https://github.com/mapeditor/tiled)
 
