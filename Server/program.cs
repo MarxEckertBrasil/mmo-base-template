@@ -8,13 +8,20 @@ namespace rpg_base_template.Server
         
         static void Main()
         {
-            var gameserver = new NihilNetworkServer();
-            gameserver.StartServer("127.0.0.1", 1118, 1119, 1120, gameserver);
+            var gameServer = new GameServer();
 
-            while (gameserver.IsServerRunning())
+            var networkServer = new NihilNetworkServer();
+            networkServer.StartServer("127.0.0.1", 1118, 1119, 1120, gameServer, 40, false, true);
+            
+            while (networkServer.IsServerRunning())
             {
                 Console.WriteLine("server is running");
-                gameserver.Listen();           
+                networkServer.Listen();           
+
+                Console.Write("Junin: ");
+                Console.WriteLine(networkServer.GetObjectById(0));
+                Console.Write("Clebin: ");
+                Console.WriteLine(networkServer.GetObjectById(1));
             }
         }
     }

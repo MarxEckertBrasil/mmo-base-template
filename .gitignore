@@ -56,3 +56,5 @@
 /Client/obj/rpg-base-template-client.csproj.nuget.dgspec.json
 /Client/obj/rpg-base-template-client.csproj.nuget.g.props
 /Client/obj/rpg-base-template-client.csproj.nuget.g.targets
+/.vscode/launch.json
+/.vscode/tasks.json
