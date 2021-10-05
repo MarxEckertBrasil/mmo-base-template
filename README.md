@@ -5,8 +5,6 @@ to create a immersive game.
 
 In this project I use:
 
-Raylib to make all the graphics. (https://github.com/raysan5/raylib)
-
 Tiled to user create adventures. (https://github.com/mapeditor/tiled)
 
 Newtonsoft.Json to read Tiled maps. (https://github.com/JamesNK/Newtonsoft.Json)
