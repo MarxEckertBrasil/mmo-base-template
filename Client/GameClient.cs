@@ -62,11 +62,11 @@ namespace rpg_base_template.Client
         public GameClient()
         {
             //Bordless mode
-            SetWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED);
-            SetWindowState(ConfigFlags.FLAG_WINDOW_RESIZABLE);
-            SetWindowState(ConfigFlags.FLAG_WINDOW_MAXIMIZED);
-            SetWindowState(ConfigFlags.FLAG_WINDOW_ALWAYS_RUN);
-            SetWindowState(ConfigFlags.FLAG_FULLSCREEN_MODE);
+            //SetWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED);
+            //SetWindowState(ConfigFlags.FLAG_WINDOW_RESIZABLE);
+            //SetWindowState(ConfigFlags.FLAG_WINDOW_MAXIMIZED);
+            //SetWindowState(ConfigFlags.FLAG_WINDOW_ALWAYS_RUN);
+            //SetWindowState(ConfigFlags.FLAG_FULLSCREEN_MODE);
 
             InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "rpg-base-template");
             InitAudioDevice();
@@ -163,7 +163,7 @@ namespace rpg_base_template.Client
                         ClearBackground(RAYWHITE);
 
                         _camera.target = new Vector2 (){ X = _player.position.X + 20.0f, Y = _player.position.Y + 20.0f };
-                        
+
                         //Update player in server
                         _gameClient.UpdateClientNetworkObject(_player);
                       
@@ -233,6 +233,7 @@ namespace rpg_base_template.Client
             var collisionAreas = new List<Rectangle>();
             foreach (var rec in _collideTiles)
             {
+
                 if (CheckCollisionRecs(playerRec, rec))
                     collisionAreas.Add(GetCollisionRec(playerRec, rec));
             }
@@ -328,16 +329,16 @@ namespace rpg_base_template.Client
         {
             var notDrawableTypes = new string[] { "monster", "chest" };
 
-            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid).Tileset;
-            return !notDrawableTypes.Contains( tileTileset.tiles.FindLast(x => x.id == ((int)tile_id - 1))?.type.ToLowerInvariant() );
+            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
+            return !notDrawableTypes.Contains( tileTileset.Tileset.tiles.FindLast(x => x.id == ((int)tile_id - tileTileset.Firstgid))?.type.ToLowerInvariant() );
         }
 
         private bool IsTileCollide(uint tile_id)
         {
             var collideTypes = new string[] { "monster", "chest", "wall" };
 
-            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid).Tileset;
-            return collideTypes.Contains( tileTileset.tiles.FindLast(x => x.id == ((int)tile_id - 1))?.type.ToLowerInvariant() );
+            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
+            return collideTypes.Contains( tileTileset.Tileset.tiles.FindLast(x => x.id == ((int)tile_id - tileTileset.Firstgid))?.type.ToLowerInvariant() );
         }
 
         private Rectangle GetTileRecById(uint tile)
@@ -394,20 +395,18 @@ namespace rpg_base_template.Client
                     tile_id &= ~(FLIPPED_HORIZONTALLY_FLAG |
                                  FLIPPED_VERTICALLY_FLAG   |
                                  FLIPPED_DIAGONALLY_FLAG   );
-
-
-                    if (tile_id > 0 && IsTileDrawable(tile_id))
-                    {        
+                    
+                    if ((tile_id == 0 && layer.id == _tiledMap.layers[0].id) || (tile_id > 0 && IsTileCollide(tile_id)))
+                    {
                         var posVec = new Vector2(x_pos*_tiledMap.tilewidth, y_pos*_tiledMap.tileheight);
                         
-                        var tileRec = GetTileRecById(tile_id);
-                                     
+                        var tileRec = tile_id == 0 ? new Rectangle() { width = _tiledMap.tilewidth, height = _tiledMap.tileheight} : GetTileRecById(tile_id);
+                                    
                         var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
-
-                        if (IsTileCollide(tile_id))
-                            collideTiles.Add(new CollisionTile() { Rec = resizedTileRec, Used = false });
+                                               
+                        collideTiles.Add(new CollisionTile() { Rec = resizedTileRec, Used = false, TileId = (int)tile_id });
                     }
-
+                    
                     x_pos++;
                     if (x_pos >= layer.width)
                     {
@@ -428,48 +427,50 @@ namespace rpg_base_template.Client
                     
                 var newCollisionRec = tile1.Rec;
                 
-                foreach (var tile2 in collideTiles)
+                if (tile1.TileId > 0)
                 {
-                    if (tile2.Used)
-                        continue;
-
-                    if (GetDistance(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
-                                    new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
+                    foreach (var tile2 in collideTiles)
                     {
-                        newCollisionRec.x = tile2.Rec.x;
-                        
-                        newCollisionRec.width += tile2.Rec.width;
+                        if (tile2.Used)
+                            continue;
 
-                        tile2.Used = true;
-                    }
-                    else if (GetDistance(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
-                                         new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
-                    {
-                        newCollisionRec.y = tile2.Rec.y;
-                        
-                        newCollisionRec.height += tile2.Rec.height;
+                        if (GetDistance(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
+                                        new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
+                        {
+                            newCollisionRec.x = tile2.Rec.x;
+                            
+                            newCollisionRec.width += tile2.Rec.width;
 
-                        tile2.Used = true;
-                    }
-                    else if (GetDistance(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
-                                         new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
-                    {
-                        newCollisionRec.width += tile2.Rec.width;
+                            tile2.Used = true;
+                        }
+                        else if (GetDistance(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
+                                            new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
+                        {
+                            newCollisionRec.y = tile2.Rec.y;
+                            
+                            newCollisionRec.height += tile2.Rec.height;
 
-                        tile2.Used = true;
-                    }
-                    else if (GetDistance(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
-                                         new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
-                    {
-                        newCollisionRec.height += tile2.Rec.height;
+                            tile2.Used = true;
+                        }
+                        else if (GetDistance(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
+                                            new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
+                        {
+                            newCollisionRec.width += tile2.Rec.width;
 
-                        tile2.Used = true;
+                            tile2.Used = true;
+                        }
+                        else if (GetDistance(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
+                                            new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
+                        {
+                            newCollisionRec.height += tile2.Rec.height;
+
+                            tile2.Used = true;
+                        }
                     }
                 }
-
+                
                 _collideTiles.Add(newCollisionRec);
             }
-
         }
 
         public void EndGame()
