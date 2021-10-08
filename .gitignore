@@ -130,3 +130,5 @@
 /Server/obj/Release/net5.0/rpg-base-template-server.dll
 /Server/obj/Release/net5.0/rpg-base-template-server.genruntimeconfig.cache
 /Server/obj/Release/net5.0/rpg-base-template-server.pdb
+/Client/System/Images/Button2.png
+/Client/bin/Debug/net5.0/Adventure/player.png

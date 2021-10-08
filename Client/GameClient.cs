@@ -45,9 +45,9 @@ namespace rpg_base_template.Client
         //TILED.
         const string TILED_PATH = "Adventure/";
         const string MAP_NAME = "map.json";
-        Texture2D _tiledMapTexture;
+        List<(int Firstgid, Texture2D Texture)> _tiledMapTextures = new List<(int Firstgid, Texture2D Texture)>();
         TiledMap _tiledMap = new TiledMap();
-        TiledTileset _tiledTileset = new TiledTileset();
+        List<(int Firstgid, TiledTileset Tileset)> _tiledTilesets = new List<(int Firstgid, TiledTileset Tileset)>();
         const uint FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
         const uint FLIPPED_VERTICALLY_FLAG   = 0x40000000;
         const uint FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
@@ -143,7 +143,7 @@ namespace rpg_base_template.Client
 
                         //Add player texture
                         _playerTexture = LoadTexture("Adventure/player.png");
-                        _enemyTexture = LoadTexture("Adventure/scarfy.png");
+                        _enemyTexture = LoadTexture("Adventure/player.png");
 
                         _gameScenes = GameScenes.IN_GAME;
 
@@ -237,9 +237,9 @@ namespace rpg_base_template.Client
 
                 var posVec = new Vector2(serverPlayer.position.X, serverPlayer.position.Y);
 
-                var playerRec = new Rectangle(0, 0, _enemyTexture.width/6, _enemyTexture.height);
+                var playerRec = new Rectangle(0, 0, _enemyTexture.width, _enemyTexture.height);
 
-                var resizedRec = new Rectangle(posVec.X, posVec.Y, Math.Abs(playerRec.width), Math.Abs(playerRec.height));
+                var resizedRec = new Rectangle(posVec.X, posVec.Y, Math.Abs(playerRec.width * IMAGE_SCALE), Math.Abs(playerRec.height * IMAGE_SCALE));
 
                 DrawTexturePro(_enemyTexture, playerRec, resizedRec, new Vector2(resizedRec.width/2, resizedRec.height/2), 0f, WHITE);    
             }
@@ -297,7 +297,8 @@ namespace rpg_base_template.Client
                         }
                                                 
                         var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
-                        DrawTexturePro(_tiledMapTexture, tileRec, resizedTileRec, new Vector2(resizedTileRec.width/2, resizedTileRec.height/2), rotate, WHITE);
+                        
+                        DrawTexturePro(_tiledMapTextures.LastOrDefault(x => tile_id >= x.Firstgid).Texture, tileRec, resizedTileRec, new Vector2(resizedTileRec.width/2, resizedTileRec.height/2), rotate, WHITE);
                     
                         DrawRectangleLines((int)resizedTileRec.x - (int)resizedTileRec.width/2, (int)resizedTileRec.y - (int)resizedTileRec.height/2, (int)resizedTileRec.width, (int)resizedTileRec.height, RED);
                     }
@@ -314,22 +315,26 @@ namespace rpg_base_template.Client
 
         private bool IsTileDrawable(uint tile_id)
         {
-            var notDrawableTypes = new string[] { "monster", "chest"};
+            var notDrawableTypes = new string[] { "monster", "chest" };
 
-            return !notDrawableTypes.Contains( _tiledTileset.tiles.FindLast(x => x.id == ((int)tile_id - 1))?.type.ToLowerInvariant() );
+            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid).Tileset;
+            return !notDrawableTypes.Contains( tileTileset.tiles.FindLast(x => x.id == ((int)tile_id - 1))?.type.ToLowerInvariant() );
         }
 
         private bool IsTileCollide(uint tile_id)
         {
             var collideTypes = new string[] { "monster", "chest", "wall" };
 
-            return collideTypes.Contains( _tiledTileset.tiles.FindLast(x => x.id == ((int)tile_id - 1))?.type.ToLowerInvariant() );
+            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid).Tileset;
+            return collideTypes.Contains( tileTileset.tiles.FindLast(x => x.id == ((int)tile_id - 1))?.type.ToLowerInvariant() );
         }
 
         private Rectangle GetTileRecById(uint tile)
         {
-            var x_pos = (tile % _tiledTileset.x_tiles - 1) * _tiledTileset.tilewidth;
-            var y_pos = (int)(Math.Ceiling((decimal)tile / _tiledTileset.y_tiles) - 1) * _tiledTileset.tileheight;
+            var tileTileset = _tiledTilesets.LastOrDefault(x => tile >= x.Firstgid).Tileset;
+
+            var x_pos = (tile % tileTileset.x_tiles - 1) * tileTileset.tilewidth + tileTileset.margin;
+            var y_pos = (int)(Math.Ceiling((decimal)tile / tileTileset.y_tiles) - 1) * tileTileset.tileheight + tileTileset.margin;
             
             var rec = new Rectangle(x_pos, y_pos, _tiledMap.tilewidth, _tiledMap.tileheight);
 
@@ -348,12 +353,22 @@ namespace rpg_base_template.Client
             {
                 using StreamReader tilesetReader = new StreamReader(TILED_PATH + (tileset.source).Remove(0, 3).Remove(tileset.source.Length - 7) + ".json");
                 json = tilesetReader.ReadToEnd();
-                _tiledTileset = JsonConvert.DeserializeObject<TiledTileset>(json);
-                _tiledTileset.x_tiles = (int)(_tiledTileset.imagewidth / _tiledTileset.tilewidth);
-                _tiledTileset.y_tiles = (int)(_tiledTileset.imageheight / _tiledTileset.tileheight);
+                var tiledTileset = JsonConvert.DeserializeObject<TiledTileset>(json);
+
+                if (tiledTileset != null)
+                {
+                    tiledTileset.x_tiles = (int)(tiledTileset.imagewidth / tiledTileset.tilewidth);
+                    tiledTileset.y_tiles = (int)(tiledTileset.imageheight / tiledTileset.tileheight);
+
+                    _tiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
+                }
             }
             
-            _tiledMapTexture = LoadTexture(TILED_PATH + (_tiledTileset.image).Remove(0, 3));  
+            foreach (var tileTileset in _tiledTilesets)
+            {
+                _tiledMapTextures.Add((Firstgid: tileTileset.Firstgid, Texture: LoadTexture(TILED_PATH + (tileTileset.Tileset.image).Remove(0, 3))));  
+
+            }
 
             //Load Collides
             var collideTiles = new List<CollisionTile>();
@@ -449,8 +464,9 @@ namespace rpg_base_template.Client
         public void EndGame()
         {
             UnloadTexture(_systemButton);
-            if (_tiledMapTexture.format != 0)
-                UnloadTexture(_tiledMapTexture);
+            
+            foreach (var tiledMapTexture in _tiledMapTextures)
+                UnloadTexture(tiledMapTexture.Texture);
                  
             UnloadSound(_fxButton);
     

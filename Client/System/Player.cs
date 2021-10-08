@@ -10,5 +10,8 @@ namespace rpg_base_template.Client.System
 
         [NihilNetworkMonitored]
         public Vector2 position = new Vector2(256f, 256f);
+
+        [NihilNetworkMonitored]
+        public int healthPoints = 5;
     }
 }
