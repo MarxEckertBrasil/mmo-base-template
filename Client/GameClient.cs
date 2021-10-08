@@ -57,6 +57,7 @@ namespace rpg_base_template.Client
         Player _player = new Player();
         Texture2D _playerTexture;
         Texture2D _enemyTexture;
+        Camera2D _camera = new Camera2D();
 
         public GameClient()
         {
@@ -141,6 +142,12 @@ namespace rpg_base_template.Client
 
                         ConfigureTiled();
 
+                        //Load camera
+                        _camera.target = new Vector2 (){ X = _player.position.X + 20.0f, Y = _player.position.Y + 20.0f };
+                        _camera.offset = new Vector2 (){ X = SCREEN_WIDTH/2.0f, Y = SCREEN_HEIGHT/2.0f };
+                        _camera.rotation = 0.0f;
+                        _camera.zoom = 1.0f;
+
                         //Add player texture
                         _playerTexture = LoadTexture("Adventure/player.png");
                         _enemyTexture = LoadTexture("Adventure/player.png");
@@ -152,8 +159,11 @@ namespace rpg_base_template.Client
                     case GameScenes.IN_GAME:
 
                         BeginDrawing();
+                        BeginMode2D(_camera);
                         ClearBackground(RAYWHITE);
 
+                        _camera.target = new Vector2 (){ X = _player.position.X + 20.0f, Y = _player.position.Y + 20.0f };
+                        
                         //Update player in server
                         _gameClient.UpdateClientNetworkObject(_player);
                       
@@ -177,6 +187,7 @@ namespace rpg_base_template.Client
                         var collisionAreas = GetCollisionAreas(playerRec);
                         _player.position += GetDirection(playerRec, collisionAreas);
 
+                        EndMode2D();
                         EndDrawing();
 
                         break;
