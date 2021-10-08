@@ -9,9 +9,6 @@ namespace rpg_base_template.Client.System
         public int objectId = -1;
 
         [NihilNetworkMonitored]
-        public float position_x = 128f;
-
-        [NihilNetworkMonitored]
-        public float position_y = 128f;
+        public Vector2 position = new Vector2(256f, 256f);
     }
 }
