@@ -28,8 +28,8 @@ namespace rpg_base_template.Client
         NihilNetworkClient _gameClient;
 
         const int IMAGE_SCALE = 4;
-        const int SCREEN_WIDTH = 1000;
-        const int SCREEN_HEIGHT = 700;
+        const int SCREEN_WIDTH = 1920;
+        const int SCREEN_HEIGHT = 1080;
         const int NUM_FRAMES = 3;
 
         Texture2D _systemButton;
@@ -60,9 +60,16 @@ namespace rpg_base_template.Client
 
         public GameClient()
         {
+            //Bordless mode
+            SetWindowState(ConfigFlags.FLAG_WINDOW_UNDECORATED);
+            SetWindowState(ConfigFlags.FLAG_WINDOW_RESIZABLE);
+            SetWindowState(ConfigFlags.FLAG_WINDOW_MAXIMIZED);
+            SetWindowState(ConfigFlags.FLAG_WINDOW_ALWAYS_RUN);
+            SetWindowState(ConfigFlags.FLAG_FULLSCREEN_MODE);
+
             InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "rpg-base-template");
             InitAudioDevice();
-
+                   
             _gameClient = new NihilNetworkClient();
 
             _systemButton = LoadTexture("System/Images/Button1.png");
