@@ -12,6 +12,8 @@ using System;
 using System.Linq;
 using NihilNetwork;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using NihilNetwork.Utils;
 
 namespace rpg_base_template.Client
 {
@@ -20,7 +22,8 @@ namespace rpg_base_template.Client
         MAIN_MENU = 0,
         LOBBY = 2,
         LOADING_GAME = 3,
-        IN_GAME = 4
+        SELECT_CHARACTER = 4,
+        IN_GAME = 5
     }
 
     public class GameClient
@@ -28,9 +31,10 @@ namespace rpg_base_template.Client
         NihilNetworkClient _gameClient;
 
         const int IMAGE_SCALE = 4;
-        const int SCREEN_WIDTH = 1920;
-        const int SCREEN_HEIGHT = 1080;
+        const int SCREEN_WIDTH = 800;
+        const int SCREEN_HEIGHT = 800;
         const int NUM_FRAMES = 3;
+        Color BACKGROUND_COLOR = BLACK;
 
         Texture2D _systemButton;
         Rectangle _btnBounds;
@@ -45,20 +49,19 @@ namespace rpg_base_template.Client
         //TILED.
         const string TILED_PATH = "Adventure/";
         const string MAP_NAME = "map.json";
-        List<(int Firstgid, Texture2D Texture)> _tiledMapTextures = new List<(int Firstgid, Texture2D Texture)>();
-        TiledMap _tiledMap = new TiledMap();
-        List<(int Firstgid, TiledTileset Tileset)> _tiledTilesets = new List<(int Firstgid, TiledTileset Tileset)>();
+        List<TiledMap> _tiledMaps = new List<TiledMap>();
+        TiledMap _currentTiledMap = new TiledMap();
         const uint FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
         const uint FLIPPED_VERTICALLY_FLAG   = 0x40000000;
         const uint FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
-        List<Rectangle> _collideTiles = new List<Rectangle>();
-
+        
         //Player
         Player _player = new Player();
-        Texture2D _playerTexture;
-        Texture2D _enemyTexture;
         Camera2D _camera = new Camera2D();
 
+
+        //Effects
+        Shader _shader = new Shader();
         public GameClient()
         {
             //Bordless mode
@@ -117,18 +120,14 @@ namespace rpg_base_template.Client
                             {
 
                             }
-                       
-                            _gameClient.Connect("127.0.0.1", 1120, this, true, true);
-
-                            this.RegisterNetworkFunctions(_gameClient);  
-
+                                          
                             _gameScenes = GameScenes.LOADING_GAME;
                         }
 
                         _sourceRec.y = btnState * _frameHeight;
 
                         BeginDrawing();
-                        ClearBackground(RAYWHITE);
+                        ClearBackground(BACKGROUND_COLOR);
 
                         DrawTextureRec(_systemButton, _sourceRec, new Vector2(_btnBounds.x, _btnBounds.y), WHITE);
 
@@ -140,34 +139,90 @@ namespace rpg_base_template.Client
 
                     case GameScenes.LOADING_GAME:
 
-                        ConfigureTiled();
+                        _gameClient.Connect("127.0.0.1", 1120, this, 5, true, true);
+
+                        //Configure first map
+                        ImportTiledMap(MAP_NAME);
+                        _currentTiledMap = _tiledMaps[0];
+
+                        //Load shader
+                        _shader = LoadShader("System/Shaders/gray.vs", "System/Shaders/gray.fs");
 
                         //Load camera
-                        _camera.target = new Vector2 (){ X = _player.position.X + 20.0f, Y = _player.position.Y + 20.0f };
                         _camera.offset = new Vector2 (){ X = SCREEN_WIDTH/2.0f, Y = SCREEN_HEIGHT/2.0f };
                         _camera.rotation = 0.0f;
-                        _camera.zoom = 1.0f;
+                        _camera.zoom = 1.0f;                     
 
-                        //Add player texture
-                        _playerTexture = LoadTexture("Adventure/player.png");
-                        _enemyTexture = LoadTexture("Adventure/player.png");
+                        _gameScenes = GameScenes.SELECT_CHARACTER;
 
-                        _gameScenes = GameScenes.IN_GAME;
+                        break;
+
+                    case GameScenes.SELECT_CHARACTER:
+
+                        var mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);
+                        
+                        BeginDrawing();
+                        BeginMode2D(_camera);
+                        ClearBackground(BACKGROUND_COLOR);
+
+                        
+                        DrawMap(false);
+                        var charactersToSelect = GetSpecificTileType("Player");
+                        var indexMiddleCharacter = (int)Math.Floor((decimal)(charactersToSelect.Count() / 2) - 1 );
+                        _camera.target = new Vector2 (){ X = charactersToSelect[indexMiddleCharacter].ResizedRec.x - charactersToSelect[indexMiddleCharacter].ResizedRec.width + 20.0f, 
+                                                        Y = charactersToSelect[indexMiddleCharacter].ResizedRec.y - charactersToSelect[indexMiddleCharacter].ResizedRec.height + 20.0f };
+                        
+                        EndMode2D();
+
+                        DrawText("CHOOSE A CHARACTER TO START THE ADVENTURE", SCREEN_WIDTH/2 - 220, (int)_camera.target.Y - 20, 20, WHITE);
+                        
+                        EndDrawing();
+
+                        foreach (var character in charactersToSelect)
+                        {
+                            if (CheckCollisionPointRec(mousePos, character.ResizedRec))
+                            {
+                                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                                {
+                                    _player.Position = new Vector2(character.ResizedRec.x + character.ResizedRec.width/2, character.ResizedRec.y + character.ResizedRec.height/2);
+                                    _player.MapId = character.MapId;
+                                    _player.TileId = character.TileId;
+                                    break;
+                                }
+                            } 
+                        }
+
+                        if (_player.TileId != 0 && _player.MapId != -1)
+                        {
+                            if (_player.VisionRange == 0)
+                            {
+                                _player.VisionRange = 2 * _tiledMaps[_player.MapId].tilewidth * IMAGE_SCALE;
+                            }
+
+                            _gameScenes = GameScenes.IN_GAME;
+                        }
 
                         break;
 
                     case GameScenes.IN_GAME:
+                                                     
+                        BeginDrawing();                  
+                        ClearBackground(BACKGROUND_COLOR);
 
-                        BeginDrawing();
                         BeginMode2D(_camera);
-                        ClearBackground(RAYWHITE);
-
-                        _camera.target = new Vector2 (){ X = _player.position.X + 20.0f, Y = _player.position.Y + 20.0f };
+                        
+                        _camera.target = new Vector2 (){ X = _player.Position.X + 20.0f, Y = _player.Position.Y + 20.0f };
 
                         //Update player in server
-                        _gameClient.UpdateClientNetworkObject(_player);
+                        var ranges = new Dictionary<string, NihilNetworkRange>();
+                        ranges.Add("Position", _gameClient.GetNetworkRange(NihilNetworkOperations.LESS_EQUAL, _player.VisionRange, "Position", true));
+
+                        _gameClient.UpdateClientNetworkObject(_player, ranges);
                       
+                        BeginShaderMode(_shader);
                         DrawMap();
+                        EndShaderMode();
+
                         var playerRec = DrawPlayer();
                         DrawServerImages();
 
@@ -182,23 +237,23 @@ namespace rpg_base_template.Client
                         if (IsKeyDown(KEY_UP))
                             moveVec.Y --;   
 
-                        _player.position += moveVec;
+                        _player.Position += moveVec;
 
                         var collisionAreas = GetCollisionAreas(playerRec);
-                        _player.position += GetDirection(playerRec, collisionAreas);
-
-                        EndMode2D();
+                        _player.Position += GetDirection(playerRec, collisionAreas);
+                            
+                        EndMode2D();             
                         EndDrawing();
+
+                        //Uncomment for use only with a server
+                        // if (!_gameClient.Connection.Connected)
+                        //     _gameScenes = GameScenes.MAIN_MENU;
 
                         break;
                 }       
             }
 
             EndGame();
-        }
-        private double GetDistance(Vector2 pos1, Vector2 pos2)
-        {
-            return Math.Sqrt( Math.Sqrt( pos2.X - pos1.X) + Math.Sqrt( pos2.Y - pos1.Y) );
         }
 
         private Vector2 GetDirection(Rectangle playerRec, List<Rectangle> collisionAreas)
@@ -231,7 +286,7 @@ namespace rpg_base_template.Client
         private List<Rectangle> GetCollisionAreas(Rectangle playerRec)
         {
             var collisionAreas = new List<Rectangle>();
-            foreach (var rec in _collideTiles)
+            foreach (var rec in _currentTiledMap.CollideTiles)
             {
 
                 if (CheckCollisionRecs(playerRec, rec))
@@ -247,32 +302,36 @@ namespace rpg_base_template.Client
             {
                 var serverPlayer = _gameClient.GetClientFromNetworkObject<Player>(netObj);
 
-                var posVec = new Vector2(serverPlayer.position.X, serverPlayer.position.Y);
-
-                var playerRec = new Rectangle(0, 0, _enemyTexture.width, _enemyTexture.height);
-
-                var resizedRec = new Rectangle(posVec.X, posVec.Y, Math.Abs(playerRec.width * IMAGE_SCALE), Math.Abs(playerRec.height * IMAGE_SCALE));
-
-                DrawTexturePro(_enemyTexture, playerRec, resizedRec, new Vector2(resizedRec.width/2, resizedRec.height/2), 0f, WHITE);    
+                DrawEntity(serverPlayer.TileId, serverPlayer.MapId, serverPlayer.Position);  
             }
         }
 
         private Rectangle DrawPlayer()
         {
-            var posVec = new Vector2(_player.position.X, _player.position.Y);
+            var posVec = new Vector2(_player.Position.X, _player.Position.Y);
+            var tiledMap = _tiledMaps[_player.MapId];
 
-            var playerRec = new Rectangle(0, 0, _playerTexture.width, _playerTexture.height);
+            var tileRec = GetTileRecById(_player.TileId, tiledMap);
+            
+            var resizedRec = new Rectangle(posVec.X, posVec.Y, Math.Abs(tileRec.width * IMAGE_SCALE), Math.Abs(tileRec.height * IMAGE_SCALE));
 
-            var resizedRec = new Rectangle(posVec.X, posVec.Y, Math.Abs(playerRec.width * IMAGE_SCALE), Math.Abs(playerRec.height * IMAGE_SCALE));
-
-            DrawTexturePro(_playerTexture, playerRec, resizedRec, new Vector2(resizedRec.width/2, resizedRec.height/2), 0f, WHITE); 
+            DrawTexturePro(tiledMap.TiledMapTextures.LastOrDefault(x => _player.TileId >= x.Firstgid).Texture, tileRec, resizedRec, new Vector2(resizedRec.width/2, resizedRec.height/2), 0f, WHITE); 
 
             return resizedRec;               
         }
 
-        private void DrawMap()
+        private void DrawEntity(uint tileId, int mapId, Vector2 position)
+        {
+            var tiledMap = _tiledMaps[mapId];
+            var tileRec = GetTileRecById(tileId, tiledMap);
+            var resizedTileRec = new Rectangle(position.X, position.Y, Math.Abs(tileRec.width * IMAGE_SCALE), Math.Abs(tileRec.height)*IMAGE_SCALE);
+
+            DrawTexturePro(tiledMap.TiledMapTextures.LastOrDefault(x => tileId >= x.Firstgid).Texture, tileRec, resizedTileRec, new Vector2(resizedTileRec.width/2, resizedTileRec.height/2), 0f, WHITE);                          
+        }
+
+        private void DrawMap(bool activeRender = true)
         {          
-            foreach (var layer in _tiledMap.layers)
+            foreach (var layer in _currentTiledMap.layers)
             {
                 int x_pos = 0;
                 int y_pos = 0;
@@ -288,9 +347,9 @@ namespace rpg_base_template.Client
                     if (tile_id > 0 && IsTileDrawable(tile_id))
                     {        
                         var rotate = 0f;
-                        var posVec = new Vector2(x_pos*_tiledMap.tilewidth, y_pos*_tiledMap.tileheight);
+                        var posVec = new Vector2(x_pos*_currentTiledMap.tilewidth, y_pos*_currentTiledMap.tileheight);
                         
-                        var tileRec = GetTileRecById(tile_id);
+                        var tileRec = GetTileRecById(tile_id, _currentTiledMap);
                         
                         if ((tile & FLIPPED_DIAGONALLY_FLAG) > 0)
                         {
@@ -309,10 +368,17 @@ namespace rpg_base_template.Client
                         }
                                                 
                         var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
+
+                        var inVision = NihilNetworkUtils.Get2dDistanceBetween(new Vector2(resizedTileRec.x, resizedTileRec.y), _player.Position) <= _player.VisionRange;
                         
-                        DrawTexturePro(_tiledMapTextures.LastOrDefault(x => tile_id >= x.Firstgid).Texture, tileRec, resizedTileRec, new Vector2(resizedTileRec.width/2, resizedTileRec.height/2), rotate, WHITE);
-                    
-                        DrawRectangleLines((int)resizedTileRec.x - (int)resizedTileRec.width/2, (int)resizedTileRec.y - (int)resizedTileRec.height/2, (int)resizedTileRec.width, (int)resizedTileRec.height, RED);
+                        if (inVision && activeRender)
+                            EndShaderMode();                     
+                        
+                        DrawTexturePro(_currentTiledMap.TiledMapTextures.LastOrDefault(x => tile_id >= x.Firstgid).Texture, tileRec, resizedTileRec, new Vector2(resizedTileRec.width/2, resizedTileRec.height/2), rotate, WHITE);                    
+                            
+                        if (inVision && activeRender)
+                            BeginShaderMode(_shader);
+
                     }
 
                     x_pos++;
@@ -325,43 +391,106 @@ namespace rpg_base_template.Client
             }
         }
 
+        private List<(int MapId, uint TileId, Rectangle ResizedRec)> GetSpecificTileType(string tileType)
+        {          
+            var characters = new List<(int MapId, uint TileId,  Rectangle ResizedRec)>();
+            
+            foreach (var layer in _currentTiledMap.layers)
+            {
+                int x_pos = 0;
+                int y_pos = 0;
+          
+                foreach (var tile in layer.data)
+                {   
+                    var tile_id = tile;
+                    tile_id &= ~(FLIPPED_HORIZONTALLY_FLAG |
+                                 FLIPPED_VERTICALLY_FLAG   |
+                                 FLIPPED_DIAGONALLY_FLAG   );
+
+                    var tileTileset = _currentTiledMap.TiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
+                    var tileIdType = tileTileset.Tileset?.tiles.FindLast(x => x.id == ((int)tile_id - tileTileset.Firstgid))?.type.ToLowerInvariant();
+                    if (tile_id > 0 && tileType.ToLowerInvariant() == tileIdType)
+                    {        
+                        var rotate = 0f;
+                        var posVec = new Vector2(x_pos*_currentTiledMap.tilewidth, y_pos*_currentTiledMap.tileheight);
+                        
+                        var tileRec = GetTileRecById(tile_id, _currentTiledMap);
+                        
+                        if ((tile & FLIPPED_DIAGONALLY_FLAG) > 0)
+                        {
+                            rotate = -90f;
+                            tileRec.height = -tileRec.height;
+                        }  
+
+                        if ((tile & FLIPPED_HORIZONTALLY_FLAG) > 0)
+                        {
+                            tileRec.width = -tileRec.width;
+                        }
+
+                        if ((tile & FLIPPED_VERTICALLY_FLAG) > 0)
+                        {
+                            tileRec.height = -tileRec.height;
+                        }
+                                                
+                        var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
+                        DrawTexturePro(_currentTiledMap.TiledMapTextures.LastOrDefault(x => tile_id >= x.Firstgid).Texture, tileRec, resizedTileRec, new Vector2(resizedTileRec.width/2, resizedTileRec.height/2), rotate, WHITE);                    
+                        
+                        characters.Add((MapId: _currentTiledMap.MapId, 
+                                        TileId: tile_id, 
+                                        ResizedRec: new Rectangle(resizedTileRec.x  - (int)resizedTileRec.width/2, resizedTileRec.y - (int)resizedTileRec.height/2, resizedTileRec.width, resizedTileRec.height)));
+                    }
+
+                    x_pos++;
+                    if (x_pos >= layer.width)
+                    {
+                        x_pos = 0;
+                        y_pos++;
+                    }
+                }
+            }
+
+            return characters;
+        }
         private bool IsTileDrawable(uint tile_id)
         {
-            var notDrawableTypes = new string[] { "monster", "chest" };
+            var notDrawableTypes = new string[] { "monster", "chest", "player" };
 
-            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
+            var tileTileset = _currentTiledMap.TiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
             return !notDrawableTypes.Contains( tileTileset.Tileset.tiles.FindLast(x => x.id == ((int)tile_id - tileTileset.Firstgid))?.type.ToLowerInvariant() );
         }
 
-        private bool IsTileCollide(uint tile_id)
+        private bool IsTileCollide(uint tileId, TiledMap tiledMap)
         {
             var collideTypes = new string[] { "monster", "chest", "wall" };
 
-            var tileTileset = _tiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
-            return collideTypes.Contains( tileTileset.Tileset.tiles.FindLast(x => x.id == ((int)tile_id - tileTileset.Firstgid))?.type.ToLowerInvariant() );
+            var tileTileset = tiledMap.TiledTilesets.LastOrDefault(x => tileId >= x.Firstgid);
+            return collideTypes.Contains( tileTileset.Tileset.tiles.FindLast(x => x.id == ((int)tileId - tileTileset.Firstgid))?.type.ToLowerInvariant() );
         }
 
-        private Rectangle GetTileRecById(uint tile)
+        private Rectangle GetTileRecById(uint tile, TiledMap tiledMap)
         {
-            var tileTileset = _tiledTilesets.LastOrDefault(x => tile >= x.Firstgid).Tileset;
+            var tileTileset = tiledMap.TiledTilesets.LastOrDefault(x => tile >= x.Firstgid).Tileset;
 
             var x_pos = (tile % tileTileset.x_tiles - 1) * tileTileset.tilewidth + tileTileset.margin;
             var y_pos = (int)(Math.Ceiling((decimal)tile / tileTileset.y_tiles) - 1) * tileTileset.tileheight + tileTileset.margin;
             
-            var rec = new Rectangle(x_pos, y_pos, _tiledMap.tilewidth, _tiledMap.tileheight);
+            var rec = new Rectangle(x_pos, y_pos, tiledMap.tilewidth, tiledMap.tileheight);
 
             return rec;
         }
 
-        public void ConfigureTiled()
+        public void ImportTiledMap(string mapName)
         {
-            using StreamReader reader = new StreamReader(TILED_PATH + MAP_NAME);
+            using StreamReader reader = new StreamReader(TILED_PATH + mapName);
             
             string json = reader.ReadToEnd();
-            _tiledMap = JsonConvert.DeserializeObject<TiledMap>(json);
+            var tiledMap = JsonConvert.DeserializeObject<TiledMap>(json);
+            tiledMap.MapId = _tiledMaps.Count();
+
+            _tiledMaps.Add(tiledMap);
 
             //Change the logic in future for multiples tilesets
-            foreach (var tileset in _tiledMap.tilesets)
+            foreach (var tileset in tiledMap.tilesets)
             {
                 using StreamReader tilesetReader = new StreamReader(TILED_PATH + (tileset.source).Remove(0, 3).Remove(tileset.source.Length - 7) + ".json");
                 json = tilesetReader.ReadToEnd();
@@ -372,19 +501,19 @@ namespace rpg_base_template.Client
                     tiledTileset.x_tiles = (int)(tiledTileset.imagewidth / tiledTileset.tilewidth);
                     tiledTileset.y_tiles = (int)(tiledTileset.imageheight / tiledTileset.tileheight);
 
-                    _tiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
+                    tiledMap.TiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
                 }
             }
             
-            foreach (var tileTileset in _tiledTilesets)
+            foreach (var tileTileset in tiledMap.TiledTilesets)
             {
-                _tiledMapTextures.Add((Firstgid: tileTileset.Firstgid, Texture: LoadTexture(TILED_PATH + (tileTileset.Tileset.image).Remove(0, 3))));  
+                tiledMap.TiledMapTextures.Add((Firstgid: tileTileset.Firstgid, Texture: LoadTexture(TILED_PATH + (tileTileset.Tileset.image).Remove(0, 3))));  
 
             }
 
             //Load Collides
             var collideTiles = new List<CollisionTile>();
-            foreach (var layer in _tiledMap.layers)
+            foreach (var layer in tiledMap.layers)
             {
                 int x_pos = 0;
                 int y_pos = 0;
@@ -396,11 +525,11 @@ namespace rpg_base_template.Client
                                  FLIPPED_VERTICALLY_FLAG   |
                                  FLIPPED_DIAGONALLY_FLAG   );
                     
-                    if ((tile_id == 0 && layer.id == _tiledMap.layers[0].id) || (tile_id > 0 && IsTileCollide(tile_id)))
+                    if ((tile_id == 0 && layer.id == tiledMap.layers[0].id) || (tile_id > 0 && IsTileCollide(tile_id, tiledMap)))
                     {
-                        var posVec = new Vector2(x_pos*_tiledMap.tilewidth, y_pos*_tiledMap.tileheight);
+                        var posVec = new Vector2(x_pos*tiledMap.tilewidth, y_pos*tiledMap.tileheight);
                         
-                        var tileRec = tile_id == 0 ? new Rectangle() { width = _tiledMap.tilewidth, height = _tiledMap.tileheight} : GetTileRecById(tile_id);
+                        var tileRec = tile_id == 0 ? new Rectangle() { width = tiledMap.tilewidth, height = tiledMap.tileheight} : GetTileRecById(tile_id, tiledMap);
                                     
                         var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
                                                
@@ -416,7 +545,6 @@ namespace rpg_base_template.Client
                 }
             }
 
-            _collideTiles.Clear();
             //Configure collisions more precise
             foreach (var tile1 in collideTiles)
             {
@@ -434,7 +562,7 @@ namespace rpg_base_template.Client
                         if (tile2.Used)
                             continue;
 
-                        if (GetDistance(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
+                        if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
                                         new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
                         {
                             newCollisionRec.x = tile2.Rec.x;
@@ -443,7 +571,7 @@ namespace rpg_base_template.Client
 
                             tile2.Used = true;
                         }
-                        else if (GetDistance(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
+                        else if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
                                             new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
                         {
                             newCollisionRec.y = tile2.Rec.y;
@@ -452,14 +580,14 @@ namespace rpg_base_template.Client
 
                             tile2.Used = true;
                         }
-                        else if (GetDistance(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
+                        else if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
                                             new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
                         {
                             newCollisionRec.width += tile2.Rec.width;
 
                             tile2.Used = true;
                         }
-                        else if (GetDistance(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
+                        else if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
                                             new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
                         {
                             newCollisionRec.height += tile2.Rec.height;
@@ -469,16 +597,19 @@ namespace rpg_base_template.Client
                     }
                 }
                 
-                _collideTiles.Add(newCollisionRec);
+                tiledMap.CollideTiles.Add(newCollisionRec);
             }
+
+            _tiledMaps.Add(tiledMap);
         }
 
         public void EndGame()
         {
             UnloadTexture(_systemButton);
             
-            foreach (var tiledMapTexture in _tiledMapTextures)
-                UnloadTexture(tiledMapTexture.Texture);
+            foreach (var tiledMap in _tiledMaps)
+                foreach (var tiledMapTexture in tiledMap.TiledMapTextures)
+                    UnloadTexture(tiledMapTexture.Texture);
                  
             UnloadSound(_fxButton);
     

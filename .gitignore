@@ -132,3 +132,8 @@
 /Server/obj/Release/net5.0/rpg-base-template-server.pdb
 /Client/System/Images/Button2.png
 /Client/bin/Debug/net5.0/Adventure/player.png
+/Client/System/Shaders/gray.fs
+/Client/System/Shaders/gray.vs
+/Client/bin/Debug/net5.0/System/Shaders/gray.fs
+/Client/bin/Debug/net5.0/System/Shaders/gray.vs
+/Client/bin/Debug/

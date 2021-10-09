@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Raylib_cs;
 
 namespace rpg_base_template.Client.System
 {
@@ -19,6 +20,12 @@ namespace rpg_base_template.Client.System
         public string type { get; set; }
         public string version { get; set; }
         public int width { get; set; }
+
+
+        internal int MapId {get; set; }
+        internal List<Rectangle> CollideTiles = new List<Rectangle>();
+        internal List<(int Firstgid, TiledTileset Tileset)> TiledTilesets = new List<(int Firstgid, TiledTileset Tileset)>();
+        internal List<(int Firstgid, Texture2D Texture)> TiledMapTextures = new List<(int Firstgid, Texture2D Texture)>();
     }
 
     public class Layer
