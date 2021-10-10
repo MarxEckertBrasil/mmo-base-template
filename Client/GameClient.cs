@@ -14,6 +14,7 @@ using NihilNetwork;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using NihilNetwork.Utils;
+using System.Net;
 
 namespace rpg_base_template.Client
 {
@@ -90,7 +91,15 @@ namespace rpg_base_template.Client
         public void GameLoop()
         {
             int btnState = 0;
+            var mouseClick = true;
 
+            var inputIp = string.Empty;
+            Rectangle inputIpBox = new Rectangle(SCREEN_WIDTH/2 - 100, 180, 225, 50);            
+            var inputIpBoxSelected = false;
+
+            var targetIp = string.Empty;
+            
+            var charCount = 0;
             while (!WindowShouldClose())
             {
                 switch (_gameScenes)
@@ -99,6 +108,49 @@ namespace rpg_base_template.Client
                         _mousePoint = GetMousePosition();
                         var btnAction = false;
 
+                        if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                            mouseClick = true;
+                        
+                        if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                            mouseClick = false;
+
+                        //Input text logic   
+                        if (CheckCollisionPointRec(_mousePoint, inputIpBox))
+                        {
+                            if (mouseClick)
+                            {
+                                inputIpBoxSelected = true;
+                            }
+                        }
+                        else if (mouseClick)
+                        {
+                            inputIpBoxSelected = false;
+                        }
+                       
+                        if (inputIpBoxSelected)
+                        {
+                            int key = GetCharPressed();
+
+                            while (key > 0)
+                            {
+                                if ((key >= 32) && (key <= 125) && (charCount < 15))
+                                {
+                                    targetIp += (char)key;
+                                    charCount++;
+                                }
+
+                                key = GetCharPressed();                            
+                            }
+
+                            if (IsKeyPressed(KEY_BACKSPACE))
+                            {
+                                charCount--;
+                                if (charCount < 0) charCount = 0;
+                                targetIp = targetIp.Substring(0, charCount);
+                            }
+                        }
+                        
+                        //Start button logic
                         if (CheckCollisionPointRec(_mousePoint, _btnBounds))
                         {
                             if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
@@ -114,14 +166,19 @@ namespace rpg_base_template.Client
 
                         if (btnAction)
                         {
-                            PlaySound(_fxButton);
+                            var validIp = IPAddress.TryParse(targetIp, out IPAddress addr);
 
-                            while (IsSoundPlaying(_fxButton))
+                            if (validIp)
                             {
+                                inputIp = targetIp;
 
+                                PlaySound(_fxButton);
+
+                                while (IsSoundPlaying(_fxButton))
+                                {}
+                                            
+                                _gameScenes = GameScenes.LOADING_GAME;
                             }
-                                          
-                            _gameScenes = GameScenes.LOADING_GAME;
                         }
 
                         _sourceRec.y = btnState * _frameHeight;
@@ -129,7 +186,12 @@ namespace rpg_base_template.Client
                         BeginDrawing();
                         ClearBackground(BACKGROUND_COLOR);
 
+                        DrawRectangleRec(inputIpBox, GRAY);
                         DrawTextureRec(_systemButton, _sourceRec, new Vector2(_btnBounds.x, _btnBounds.y), WHITE);
+
+                        DrawText(targetIp, (int)inputIpBox.x, (int)inputIpBox.y, 40, BLACK);
+                        if (inputIpBoxSelected)
+                            DrawRectangleLines((int)inputIpBox.x, (int)inputIpBox.y, (int)inputIpBox.width, (int)inputIpBox.height, YELLOW);
 
                         EndDrawing();
                         break;
@@ -139,7 +201,7 @@ namespace rpg_base_template.Client
 
                     case GameScenes.LOADING_GAME:
 
-                        _gameClient.Connect("127.0.0.1", 1120, this, 5, true, true);
+                        _gameClient.Connect(inputIp, 1120, this, 5, true, true);
 
                         //Configure first map
                         ImportTiledMap(MAP_NAME);
@@ -165,23 +227,19 @@ namespace rpg_base_template.Client
                         BeginMode2D(_camera);
                         ClearBackground(BACKGROUND_COLOR);
 
-                        
                         DrawMap(false);
                         var charactersToSelect = GetSpecificTileType("Player");
                         var indexMiddleCharacter = (int)Math.Floor((decimal)(charactersToSelect.Count() / 2) - 1 );
                         _camera.target = new Vector2 (){ X = charactersToSelect[indexMiddleCharacter].ResizedRec.x - charactersToSelect[indexMiddleCharacter].ResizedRec.width + 20.0f, 
                                                         Y = charactersToSelect[indexMiddleCharacter].ResizedRec.y - charactersToSelect[indexMiddleCharacter].ResizedRec.height + 20.0f };
                         
-                        EndMode2D();
-
-                        DrawText("CHOOSE A CHARACTER TO START THE ADVENTURE", SCREEN_WIDTH/2 - 220, (int)_camera.target.Y - 20, 20, WHITE);
-                        
-                        EndDrawing();
-
                         foreach (var character in charactersToSelect)
                         {
                             if (CheckCollisionPointRec(mousePos, character.ResizedRec))
                             {
+                                DrawRectangleLines((int)(character.ResizedRec.x), (int)(character.ResizedRec.y), 
+                                                (int) character.ResizedRec.width, (int) character.ResizedRec.height, YELLOW);
+
                                 if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
                                 {
                                     _player.Position = new Vector2(character.ResizedRec.x + character.ResizedRec.width/2, character.ResizedRec.y + character.ResizedRec.height/2);
@@ -192,6 +250,12 @@ namespace rpg_base_template.Client
                             } 
                         }
 
+                        EndMode2D();
+
+                        DrawText("CHOOSE A CHARACTER TO START THE ADVENTURE", SCREEN_WIDTH/2 - 220, (int)_camera.target.Y - 20, 20, WHITE);
+                        
+                        EndDrawing();
+
                         if (_player.TileId != 0 && _player.MapId != -1)
                         {
                             if (_player.VisionRange == 0)
@@ -201,6 +265,7 @@ namespace rpg_base_template.Client
 
                             _gameScenes = GameScenes.IN_GAME;
                         }
+                        
 
                         break;
 

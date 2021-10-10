@@ -11,7 +11,7 @@ namespace rpg_base_template.Server
             var gameServer = new GameServer();
 
             var networkServer = new NihilNetworkServer();
-            networkServer.StartServer("127.0.0.1", 1120, gameServer, 120, false, true);
+            networkServer.StartServer(1120, gameServer, 120, false, true);
             
             while (true)
             {
