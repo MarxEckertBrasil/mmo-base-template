@@ -311,8 +311,8 @@ namespace rpg_base_template.Client
                         EndDrawing();
 
                         //Uncomment for use only with a server
-                        // if (!_gameClient.Connection.Connected)
-                        //     _gameScenes = GameScenes.MAIN_MENU;
+                        if (!_gameClient.Connection.Connected)
+                             _gameScenes = GameScenes.MAIN_MENU;
 
                         break;
                 }       
