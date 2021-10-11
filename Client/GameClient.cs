@@ -281,7 +281,7 @@ namespace rpg_base_template.Client
                         //Update player in server
                         var ranges = new Dictionary<string, NihilNetworkRange>();
                         ranges.Add("Position", _gameClient.GetNetworkRange(NihilNetworkOperations.LESS_EQUAL, _player.VisionRange, "Position", true));
-
+                        
                         _gameClient.UpdateClientNetworkObject(_player, ranges);
                       
                         BeginShaderMode(_shader);
@@ -678,7 +678,7 @@ namespace rpg_base_template.Client
                  
             UnloadSound(_fxButton);
     
-            _gameClient.Disconect();
+            _gameClient.Disconnect();
             CloseAudioDevice();
             CloseWindow();
         }
