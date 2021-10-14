@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using NihilNetwork.Utils;
 using System.Net;
+using NihilNetwork.Server;
 
 namespace rpg_base_template.Client
 {
@@ -29,7 +30,10 @@ namespace rpg_base_template.Client
 
     public class GameClient
     {
+        //Network
         NihilNetworkClient _gameClient;
+        NihilNetworkServer _gameServer;
+        bool _isServer;
 
         const int IMAGE_SCALE = 4;
         const int SCREEN_WIDTH = 800;
@@ -37,12 +41,18 @@ namespace rpg_base_template.Client
         const int NUM_FRAMES = 3;
         Color BACKGROUND_COLOR = BLACK;
 
-        Texture2D _systemButton;
-        Rectangle _btnBounds;
-        Rectangle _sourceRec;
+        Texture2D _joinButton;
+        Texture2D _hostButton;
+        
+        Rectangle _joinBtnBnds;
+        Rectangle _joinBtnRec;
+
+        Rectangle _hostBtnBnds;
+        Rectangle _hostBtnRec;
         Sound _fxButton;
 
         int _frameHeight;
+        int _frameHeight2;
         Vector2 _mousePoint = new Vector2(0.0f, 0.0f);
 
         GameScenes _gameScenes = GameScenes.MAIN_MENU;
@@ -76,30 +86,42 @@ namespace rpg_base_template.Client
             InitAudioDevice();
                    
             _gameClient = new NihilNetworkClient();
+            _gameServer = new NihilNetworkServer();
 
-            _systemButton = LoadTexture("System/Images/Button1.png");
+            //Button1
+            _joinButton = LoadTexture("System/Images/Button1.png");
 
-            _frameHeight = _systemButton.height/NUM_FRAMES;
-            _sourceRec = new Rectangle(0, 0, _systemButton.width, _frameHeight);
-            _btnBounds = new Rectangle(SCREEN_WIDTH/2 - _systemButton.width/2, SCREEN_HEIGHT/2 - _systemButton.height/NUM_FRAMES/2, _systemButton.width, _frameHeight);
+            _frameHeight = _joinButton.height/NUM_FRAMES;
+            _joinBtnRec = new Rectangle(0, 0, _joinButton.width, _frameHeight);
+            _joinBtnBnds = new Rectangle(SCREEN_WIDTH/2 - _joinButton.width/2, SCREEN_HEIGHT/2 - _joinButton.height/NUM_FRAMES/2, _joinButton.width, _frameHeight);
 
             _fxButton = LoadSound("System/Audio/buttonfx.wav");
             
+            //Button2
+            _hostButton = LoadTexture("System/Images/Button1.png");
+
+            _frameHeight2 = _hostButton.height/NUM_FRAMES;
+            _hostBtnRec = new Rectangle(0, 0, _hostButton.width, _frameHeight2);
+            _hostBtnBnds = new Rectangle(SCREEN_WIDTH/2 - _hostButton.width/2, SCREEN_HEIGHT/2 - _hostButton.height/NUM_FRAMES/2 + _joinBtnBnds.height, _hostButton.width, _frameHeight2);
+
+
             SetTargetFPS(60);
         }
 
         public void GameLoop()
         {
-            int btnState = 0;
+            int joinBtnState = 0;
+            int hostBtnState = 0;
             var mouseClick = true;
 
             var inputIp = string.Empty;
             Rectangle inputIpBox = new Rectangle(SCREEN_WIDTH/2 - 100, 180, 225, 50);            
             var inputIpBoxSelected = false;
 
-            var targetIp = string.Empty;
+            var targetIp = "127.0.0.1";
             
             var charCount = 0;
+            var mousePos = new Vector2(0,0);
             while (!WindowShouldClose())
             {
                 switch (_gameScenes)
@@ -150,22 +172,40 @@ namespace rpg_base_template.Client
                             }
                         }
                         
-                        //Start button logic
-                        if (CheckCollisionPointRec(_mousePoint, _btnBounds))
+                        if (CheckCollisionPointRec(_mousePoint, _joinBtnBnds))
                         {
                             if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                                btnState = 2;
+                                joinBtnState = 2;
                             else
-                                btnState = 1;
+                                joinBtnState = 1;
 
                             if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
                                 btnAction = true;
                         }
                         else
-                            btnState = 0;
+                            joinBtnState = 0;
+
+                        if (CheckCollisionPointRec(_mousePoint, _hostBtnBnds))
+                        {
+                            if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                                hostBtnState = 2;
+                            else
+                                hostBtnState = 1;
+
+                            if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                            {
+                                _isServer = true;
+                                btnAction = true;
+                            }
+                        }
+                        else
+                            hostBtnState = 0;
 
                         if (btnAction)
                         {
+                            if (_isServer)
+                                targetIp = "127.0.0.1";
+
                             var validIp = IPAddress.TryParse(targetIp, out IPAddress addr);
 
                             if (validIp)
@@ -176,18 +216,20 @@ namespace rpg_base_template.Client
 
                                 while (IsSoundPlaying(_fxButton))
                                 {}
-                                            
+
                                 _gameScenes = GameScenes.LOADING_GAME;
                             }
                         }
 
-                        _sourceRec.y = btnState * _frameHeight;
+                        _joinBtnRec.y = joinBtnState * _frameHeight;
+                        _hostBtnRec.y = hostBtnState * _frameHeight2;
 
                         BeginDrawing();
                         ClearBackground(BACKGROUND_COLOR);
 
                         DrawRectangleRec(inputIpBox, GRAY);
-                        DrawTextureRec(_systemButton, _sourceRec, new Vector2(_btnBounds.x, _btnBounds.y), WHITE);
+                        DrawTextureRec(_joinButton, _joinBtnRec, new Vector2(_joinBtnBnds.x, _joinBtnBnds.y), WHITE);
+                        DrawTextureRec(_hostButton, _hostBtnRec, new Vector2(_hostBtnBnds.x, _hostBtnBnds.y), WHITE);
 
                         DrawText(targetIp, (int)inputIpBox.x, (int)inputIpBox.y, 40, BLACK);
                         if (inputIpBoxSelected)
@@ -201,7 +243,10 @@ namespace rpg_base_template.Client
 
                     case GameScenes.LOADING_GAME:
 
-                        _gameClient.Connect(inputIp, 1120, this, 5, true, true);
+                        if (_isServer)
+                            _gameServer.StartServer(1120, this, 10, true, true);
+
+                         _gameClient.Connect(inputIp, 1120, this, 5, true, true);
 
                         //Configure first map
                         ImportTiledMap(MAP_NAME);
@@ -220,8 +265,13 @@ namespace rpg_base_template.Client
                         break;
 
                     case GameScenes.SELECT_CHARACTER:
+                        if (_isServer)
+                        {
+                            _gameScenes = GameScenes.IN_GAME;
+                            continue;
+                        }
 
-                        var mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);
+                        mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);
                         
                         BeginDrawing();
                         BeginMode2D(_camera);
@@ -279,40 +329,78 @@ namespace rpg_base_template.Client
                         _camera.target = new Vector2 (){ X = _player.Position.X + 20.0f, Y = _player.Position.Y + 20.0f };
 
                         //Update player in server
-                        var ranges = new Dictionary<string, NihilNetworkRange>();
-                        ranges.Add("Position", _gameClient.GetNetworkRange(NihilNetworkOperations.LESS_EQUAL, _player.VisionRange, "Position", true));
+                        if (_isServer)
+                            _gameClient.UpdateClientNetworkObject(_player); 
+                        else
+                        {
+                           var ranges = new Dictionary<string, NihilNetworkRange>();
+                           ranges.Add("Position", _gameClient.GetNetworkRange(NihilNetworkOperations.LESS_EQUAL, _player.VisionRange, "Position", true));
+                            
+                           _gameClient.UpdateClientNetworkObject(_player, ranges);                     
+                        }
                         
-                        _gameClient.UpdateClientNetworkObject(_player, ranges);
-                      
                         BeginShaderMode(_shader);
                         DrawMap();
                         EndShaderMode();
 
-                        var playerRec = DrawPlayer();
+                        
                         DrawServerImages();
+                        
+                        if (_isServer)
+                        {
+                        
+                            if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                            {
+                                mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);                             
+                            }
+                            else if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                            {
+                                var releasedMOusePos = GetScreenToWorld2D(GetMousePosition(), _camera);
+                                _player.Position += (mousePos - releasedMOusePos ) * 50;
+                            }
+                            else
+                                mousePos = new Vector2(0,0);
+                        }
+                        else
+                        {
+                            var playerRec = DrawPlayer();
+                            var moveVec = new Vector2(0,0);
 
-                        var moveVec = new Vector2(0,0);
+                            if (IsKeyDown(KEY_RIGHT))
+                                moveVec.X ++;
+                            if (IsKeyDown(KEY_LEFT))
+                                moveVec.X --;
+                            if (IsKeyDown(KEY_DOWN))
+                                moveVec.Y ++;
+                            if (IsKeyDown(KEY_UP))
+                                moveVec.Y --;   
 
-                        if (IsKeyDown(KEY_RIGHT))
-                            moveVec.X ++;
-                        if (IsKeyDown(KEY_LEFT))
-                            moveVec.X --;
-                        if (IsKeyDown(KEY_DOWN))
-                            moveVec.Y ++;
-                        if (IsKeyDown(KEY_UP))
-                            moveVec.Y --;   
+                            _player.Position += moveVec;
 
-                        _player.Position += moveVec;
-
-                        var collisionAreas = GetCollisionAreas(playerRec);
-                        _player.Position += GetDirection(playerRec, collisionAreas);
+                            var collisionAreas = GetCollisionAreas(playerRec);
+                            _player.Position += GetDirection(playerRec, collisionAreas);
+                        }
                             
                         EndMode2D();             
                         EndDrawing();
 
                         //Uncomment for use only with a server
-                        if (!_gameClient.Connection.Connected)
-                             _gameScenes = GameScenes.MAIN_MENU;
+                        if (_isServer)
+                        {
+                            if (!_gameServer.IsServerRunning() || !_gameClient.Connection.Connected)
+                            {
+                                _isServer = false;
+                                _gameScenes = GameScenes.MAIN_MENU;
+
+                                _gameClient.Disconnect();
+                                _gameServer.StopServer();
+                            }
+                        }
+                        else if (!_gameClient.Connection.Connected)
+                        {
+                            _gameClient.Disconnect();
+                            _gameScenes = GameScenes.MAIN_MENU;
+                        }
 
                         break;
                 }       
@@ -366,7 +454,6 @@ namespace rpg_base_template.Client
             foreach (var netObj in _gameClient.GetServerObjects())
             {
                 var serverPlayer = _gameClient.GetClientFromNetworkObject<Player>(netObj);
-
                 DrawEntity(serverPlayer.TileId, serverPlayer.MapId, serverPlayer.Position);  
             }
         }
@@ -534,11 +621,11 @@ namespace rpg_base_template.Client
 
         private Rectangle GetTileRecById(uint tile, TiledMap tiledMap)
         {
-            var tileTileset = tiledMap.TiledTilesets.LastOrDefault(x => tile >= x.Firstgid).Tileset;
+            var tileTileset = tiledMap.TiledTilesets.LastOrDefault(x => tile >= x.Firstgid);
 
-            var x_pos = (tile % tileTileset.x_tiles - 1) * tileTileset.tilewidth + tileTileset.margin;
-            var y_pos = (int)(Math.Ceiling((decimal)tile / tileTileset.y_tiles) - 1) * tileTileset.tileheight + tileTileset.margin;
-            
+            var x_pos = ((tile - tileTileset.Firstgid) % tileTileset.Tileset.x_tiles) * tileTileset.Tileset.tilewidth + tileTileset.Tileset.margin;
+            var y_pos = (int)(Math.Floor((decimal)((tile - tileTileset.Firstgid) / tileTileset.Tileset.y_tiles)) * tileTileset.Tileset.tileheight + tileTileset.Tileset.margin);
+             
             var rec = new Rectangle(x_pos, y_pos, tiledMap.tilewidth, tiledMap.tileheight);
 
             return rec;
@@ -563,8 +650,8 @@ namespace rpg_base_template.Client
 
                 if (tiledTileset != null)
                 {
-                    tiledTileset.x_tiles = (int)(tiledTileset.imagewidth / tiledTileset.tilewidth);
-                    tiledTileset.y_tiles = (int)(tiledTileset.imageheight / tiledTileset.tileheight);
+                    tiledTileset.x_tiles = (int)((tiledTileset.imagewidth - tiledTileset.margin*2) / tiledTileset.tilewidth);
+                    tiledTileset.y_tiles = (int)((tiledTileset.imageheight - tiledTileset.margin*2) / tiledTileset.tileheight);
 
                     tiledMap.TiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
                 }
@@ -670,14 +757,17 @@ namespace rpg_base_template.Client
 
         public void EndGame()
         {
-            UnloadTexture(_systemButton);
+            UnloadTexture(_joinButton);
             
             foreach (var tiledMap in _tiledMaps)
                 foreach (var tiledMapTexture in tiledMap.TiledMapTextures)
                     UnloadTexture(tiledMapTexture.Texture);
                  
             UnloadSound(_fxButton);
-    
+
+            if (_isServer)
+                _gameServer.StopServer();
+
             _gameClient.Disconnect();
             CloseAudioDevice();
             CloseWindow();
