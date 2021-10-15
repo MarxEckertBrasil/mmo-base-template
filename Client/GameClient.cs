@@ -1,5 +1,5 @@
 using NihilNetwork.Client;
-using Newtonsoft.Json;
+using System.Text.Json;
 
 using System.Numerics;
 using Raylib_cs;
@@ -12,8 +12,6 @@ using System;
 using System.Linq;
 using NihilNetwork;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using NihilNetwork.Utils;
 using System.Net;
 using NihilNetwork.Server;
 
@@ -521,7 +519,7 @@ namespace rpg_base_template.Client
                                                 
                         var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
 
-                        var inVision = NihilNetworkUtils.Get2dDistanceBetween(new Vector2(resizedTileRec.x, resizedTileRec.y), _player.Position) <= _player.VisionRange;
+                        var inVision = Vector2.Distance(new Vector2(resizedTileRec.x, resizedTileRec.y), _player.Position) <= _player.VisionRange;
                         
                         if (inVision && activeRender)
                             EndShaderMode();                     
@@ -636,7 +634,7 @@ namespace rpg_base_template.Client
             using StreamReader reader = new StreamReader(TILED_PATH + mapName);
             
             string json = reader.ReadToEnd();
-            var tiledMap = JsonConvert.DeserializeObject<TiledMap>(json);
+            var tiledMap = JsonSerializer.Deserialize<TiledMap>(json);
             tiledMap.MapId = _tiledMaps.Count();
 
             _tiledMaps.Add(tiledMap);
@@ -646,7 +644,7 @@ namespace rpg_base_template.Client
             {
                 using StreamReader tilesetReader = new StreamReader(TILED_PATH + (tileset.source).Remove(0, 3).Remove(tileset.source.Length - 7) + ".json");
                 json = tilesetReader.ReadToEnd();
-                var tiledTileset = JsonConvert.DeserializeObject<TiledTileset>(json);
+                var tiledTileset = JsonSerializer.Deserialize<TiledTileset>(json);
 
                 if (tiledTileset != null)
                 {
@@ -713,7 +711,7 @@ namespace rpg_base_template.Client
                         if (tile2.Used)
                             continue;
 
-                        if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
+                        if (Vector2.Distance(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
                                         new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
                         {
                             newCollisionRec.x = tile2.Rec.x;
@@ -722,7 +720,7 @@ namespace rpg_base_template.Client
 
                             tile2.Used = true;
                         }
-                        else if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
+                        else if (Vector2.Distance(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
                                             new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
                         {
                             newCollisionRec.y = tile2.Rec.y;
@@ -731,14 +729,14 @@ namespace rpg_base_template.Client
 
                             tile2.Used = true;
                         }
-                        else if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
+                        else if (Vector2.Distance(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
                                             new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
                         {
                             newCollisionRec.width += tile2.Rec.width;
 
                             tile2.Used = true;
                         }
-                        else if (NihilNetworkUtils.Get2dDistanceBetween(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
+                        else if (Vector2.Distance(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
                                             new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
                         {
                             newCollisionRec.height += tile2.Rec.height;

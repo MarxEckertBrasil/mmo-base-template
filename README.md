@@ -9,6 +9,4 @@ Raylib-cs to game dev. (https://github.com/ChrisDill/Raylib-cs)
 
 Tiled to user create adventures. (https://github.com/mapeditor/tiled)
 
-Newtonsoft.Json to read Tiled maps. (https://github.com/JamesNK/Newtonsoft.Json)
-
 NihilNetwork library to manage network. (https://github.com/MarxEckertBrasil/NihilNetwork)
