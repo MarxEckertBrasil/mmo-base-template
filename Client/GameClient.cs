@@ -624,7 +624,7 @@ namespace rpg_base_template.Client
             var tileTileset = tiledMap.TiledTilesets.LastOrDefault(x => tile >= x.Firstgid);
 
             var x_pos = ((tile - tileTileset.Firstgid) % tileTileset.Tileset.x_tiles) * tileTileset.Tileset.tilewidth + tileTileset.Tileset.margin;
-            var y_pos = (int)(Math.Floor((decimal)((tile - tileTileset.Firstgid) / tileTileset.Tileset.y_tiles)) * tileTileset.Tileset.tileheight + tileTileset.Tileset.margin);
+            var y_pos = (int)(Math.Floor((decimal)((tile - tileTileset.Firstgid) / tileTileset.Tileset.x_tiles)) * tileTileset.Tileset.tileheight + tileTileset.Tileset.margin);
              
             var rec = new Rectangle(x_pos, y_pos, tiledMap.tilewidth, tiledMap.tileheight);
 
@@ -651,7 +651,6 @@ namespace rpg_base_template.Client
                 if (tiledTileset != null)
                 {
                     tiledTileset.x_tiles = (int)((tiledTileset.imagewidth - tiledTileset.margin*2) / tiledTileset.tilewidth);
-                    tiledTileset.y_tiles = (int)((tiledTileset.imageheight - tiledTileset.margin*2) / tiledTileset.tileheight);
 
                     tiledMap.TiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
                 }
