@@ -20,10 +20,11 @@ namespace rpg_base_template.Client
     public enum GameScenes
     {
         MAIN_MENU = 0,
+        SELECT_CAMPAIGN = 1,
         LOBBY = 2,
         LOADING_GAME = 3,
         SELECT_CHARACTER = 4,
-        IN_GAME = 5
+        IN_GAME = 5,
     }
 
     public class GameClient
@@ -47,7 +48,7 @@ namespace rpg_base_template.Client
 
         //TILED.
         const string TILED_PATH = "Adventure/";
-        const string MAP_NAME = "map.json";
+        const string MAP_NAME = "maps.json";
         List<TiledMap> _tiledMaps = new List<TiledMap>();
         TiledMap _currentTiledMap = new TiledMap();
         const uint FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
@@ -58,9 +59,13 @@ namespace rpg_base_template.Client
         Player _player = new Player();
         Camera2D _camera = new Camera2D();
 
-
         //Effects
         Shader _shader = new Shader();
+
+        //Campaign
+        private List<(string Dir, Rectangle Rec)> _directories = new List<(string, Rectangle)>();
+        private string _campaignSelected = string.Empty;
+
         public GameClient()
         {
             //Bordless mode
@@ -186,7 +191,7 @@ namespace rpg_base_template.Client
                             {
                                 inputIp = targetIp;
 
-                                _gameScenes = GameScenes.LOADING_GAME;
+                                _gameScenes = GameScenes.SELECT_CAMPAIGN;
                             }
                         }
 
@@ -219,6 +224,33 @@ namespace rpg_base_template.Client
                         EndDrawing();
                         break;
 
+                    case GameScenes.SELECT_CAMPAIGN:
+                        GetDirectories();
+                        mousePos = GetMousePosition();
+
+                        BeginDrawing();
+                        ClearBackground(BACKGROUND_COLOR);
+
+                        foreach (var dir in _directories)
+                        {
+                            Color textColor = WHITE;
+
+                            if (CheckCollisionPointRec(mousePos, dir.Rec))
+                            {
+                                textColor = RED;
+                                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                                {
+                                    _campaignSelected = dir.Dir + "/Meta/"+MAP_NAME;
+                                    _gameScenes = GameScenes.LOADING_GAME;
+                                }
+                            }
+                            DrawText(dir.Dir.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault(), (int)dir.Rec.x, (int)dir.Rec.y, 20, textColor);
+                        }
+                    
+                        EndDrawing();
+
+                        break;
+
                     case GameScenes.LOBBY:
                         break;
 
@@ -230,7 +262,14 @@ namespace rpg_base_template.Client
                          _gameClient.Connect(inputIp, 1120, this, 5, true, true);
 
                         //Configure first map
-                        ImportTiledMap(MAP_NAME);
+                        ImportTiledMap(_campaignSelected);
+
+                        if (_tiledMaps.Count == 0)
+                        {
+                            _gameScenes = GameScenes.MAIN_MENU;
+                            break;
+                        }
+
                         _currentTiledMap = _tiledMaps[0];
 
                         //Load shader
@@ -388,6 +427,21 @@ namespace rpg_base_template.Client
             }
 
             EndGame();
+        }
+
+        private void GetDirectories()
+        {
+            if (_directories.Count == 0)
+            {
+                var directories = Directory.GetDirectories("Adventure");
+                
+                var textPos = new Vector2(100, 100);
+                foreach (string dir in directories)
+                {
+                    _directories.Add((dir, new Rectangle(textPos.X, textPos.Y, dir.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault().Length*20, 20)));
+                    textPos.Y += 25;
+                }
+            }
         }
 
         private Vector2 GetDirection(Rectangle playerRec, List<Rectangle> collisionAreas)
@@ -612,127 +666,134 @@ namespace rpg_base_template.Client
             return rec;
         }
 
-        public void ImportTiledMap(string mapName)
+        public void ImportTiledMap(string mapPath)
         {
-            using StreamReader reader = new StreamReader(TILED_PATH + mapName);
-            
-            string json = reader.ReadToEnd();
-            var tiledMap = JsonSerializer.Deserialize<TiledMap>(json);
-            tiledMap.MapId = _tiledMaps.Count();
+            using StreamReader mapsReader = new StreamReader(mapPath);
+            var maps = mapsReader.ReadToEnd();
+            var jsonPaths = JsonSerializer.Deserialize<string[]>(maps);
 
-            _tiledMaps.Add(tiledMap);
-
-            //Change the logic in future for multiples tilesets
-            foreach (var tileset in tiledMap.tilesets)
+            foreach (var path in jsonPaths)
             {
-                using StreamReader tilesetReader = new StreamReader(TILED_PATH + (tileset.source).Remove(0, 3).Remove(tileset.source.Length - 7) + ".json");
-                json = tilesetReader.ReadToEnd();
-                var tiledTileset = JsonSerializer.Deserialize<TiledTileset>(json);
+                using StreamReader reader = new StreamReader(TILED_PATH + path);
+                
+                string json = reader.ReadToEnd();
+                var tiledMap = JsonSerializer.Deserialize<TiledMap>(json);
+                tiledMap.MapId = _tiledMaps.Count();
 
-                if (tiledTileset != null)
+                _tiledMaps.Add(tiledMap);
+
+                //Change the logic in future for multiples tilesets
+                foreach (var tileset in tiledMap.tilesets)
                 {
-                    tiledTileset.x_tiles = (int)((tiledTileset.imagewidth - tiledTileset.margin*2) / tiledTileset.tilewidth);
+                    using StreamReader tilesetReader = new StreamReader(TILED_PATH + (tileset.source).Remove(0, 3).Remove(tileset.source.Length - 7) + ".json");
+                    json = tilesetReader.ReadToEnd();
+                    var tiledTileset = JsonSerializer.Deserialize<TiledTileset>(json);
 
-                    tiledMap.TiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
-                }
-            }
-            
-            foreach (var tileTileset in tiledMap.TiledTilesets)
-            {
-                tiledMap.TiledMapTextures.Add((Firstgid: tileTileset.Firstgid, Texture: LoadTexture(TILED_PATH + (tileTileset.Tileset.image).Remove(0, 3))));  
-
-            }
-
-            //Load Collides
-            var collideTiles = new List<CollisionTile>();
-            foreach (var layer in tiledMap.layers)
-            {
-                int x_pos = 0;
-                int y_pos = 0;
-          
-                foreach (var tile in layer.data)
-                {   
-                    var tile_id = tile;
-                    tile_id &= ~(FLIPPED_HORIZONTALLY_FLAG |
-                                 FLIPPED_VERTICALLY_FLAG   |
-                                 FLIPPED_DIAGONALLY_FLAG   );
-                    
-                    if ((tile_id == 0 && layer.id == tiledMap.layers[0].id) || (tile_id > 0 && IsTileCollide(tile_id, tiledMap)))
+                    if (tiledTileset != null)
                     {
-                        var posVec = new Vector2(x_pos*tiledMap.tilewidth, y_pos*tiledMap.tileheight);
+                        tiledTileset.x_tiles = (int)((tiledTileset.imagewidth - tiledTileset.margin*2) / tiledTileset.tilewidth);
+
+                        tiledMap.TiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
+                    }
+                }
+                
+                foreach (var tileTileset in tiledMap.TiledTilesets)
+                {
+                    tiledMap.TiledMapTextures.Add((Firstgid: tileTileset.Firstgid, Texture: LoadTexture(TILED_PATH + (tileTileset.Tileset.image).Remove(0, 3))));  
+
+                }
+
+                //Load Collides
+                var collideTiles = new List<CollisionTile>();
+                foreach (var layer in tiledMap.layers)
+                {
+                    int x_pos = 0;
+                    int y_pos = 0;
+            
+                    foreach (var tile in layer.data)
+                    {   
+                        var tile_id = tile;
+                        tile_id &= ~(FLIPPED_HORIZONTALLY_FLAG |
+                                    FLIPPED_VERTICALLY_FLAG   |
+                                    FLIPPED_DIAGONALLY_FLAG   );
                         
-                        var tileRec = tile_id == 0 ? new Rectangle() { width = tiledMap.tilewidth, height = tiledMap.tileheight} : GetTileRecById(tile_id, tiledMap);
-                                    
-                        var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
-                                               
-                        collideTiles.Add(new CollisionTile() { Rec = resizedTileRec, Used = false, TileId = (int)tile_id });
-                    }
-                    
-                    x_pos++;
-                    if (x_pos >= layer.width)
-                    {
-                        x_pos = 0;
-                        y_pos++;
+                        if ((tile_id == 0 && layer.id == tiledMap.layers[0].id) || (tile_id > 0 && IsTileCollide(tile_id, tiledMap)))
+                        {
+                            var posVec = new Vector2(x_pos*tiledMap.tilewidth, y_pos*tiledMap.tileheight);
+                            
+                            var tileRec = tile_id == 0 ? new Rectangle() { width = tiledMap.tilewidth, height = tiledMap.tileheight} : GetTileRecById(tile_id, tiledMap);
+                                        
+                            var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
+                                                
+                            collideTiles.Add(new CollisionTile() { Rec = resizedTileRec, Used = false, TileId = (int)tile_id });
+                        }
+                        
+                        x_pos++;
+                        if (x_pos >= layer.width)
+                        {
+                            x_pos = 0;
+                            y_pos++;
+                        }
                     }
                 }
-            }
 
-            //Configure collisions more precise
-            foreach (var tile1 in collideTiles)
-            {
-                if (tile1.Used)
-                    continue;
-
-                tile1.Used = true;
-                    
-                var newCollisionRec = tile1.Rec;
-                
-                if (tile1.TileId > 0)
+                //Configure collisions more precise
+                foreach (var tile1 in collideTiles)
                 {
-                    foreach (var tile2 in collideTiles)
+                    if (tile1.Used)
+                        continue;
+
+                    tile1.Used = true;
+                        
+                    var newCollisionRec = tile1.Rec;
+                    
+                    if (tile1.TileId > 0)
                     {
-                        if (tile2.Used)
-                            continue;
-
-                        if (Vector2.Distance(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
-                                        new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
+                        foreach (var tile2 in collideTiles)
                         {
-                            newCollisionRec.x = tile2.Rec.x;
-                            
-                            newCollisionRec.width += tile2.Rec.width;
+                            if (tile2.Used)
+                                continue;
 
-                            tile2.Used = true;
-                        }
-                        else if (Vector2.Distance(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
+                            if (Vector2.Distance(new Vector2(tile2.Rec.x + tile2.Rec.width, tile2.Rec.y),
                                             new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
-                        {
-                            newCollisionRec.y = tile2.Rec.y;
-                            
-                            newCollisionRec.height += tile2.Rec.height;
+                            {
+                                newCollisionRec.x = tile2.Rec.x;
+                                
+                                newCollisionRec.width += tile2.Rec.width;
 
-                            tile2.Used = true;
-                        }
-                        else if (Vector2.Distance(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
-                                            new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
-                        {
-                            newCollisionRec.width += tile2.Rec.width;
+                                tile2.Used = true;
+                            }
+                            else if (Vector2.Distance(new Vector2(tile2.Rec.x, tile2.Rec.y + tile2.Rec.height), 
+                                                new Vector2(newCollisionRec.x, newCollisionRec.y)) == 0)
+                            {
+                                newCollisionRec.y = tile2.Rec.y;
+                                
+                                newCollisionRec.height += tile2.Rec.height;
 
-                            tile2.Used = true;
-                        }
-                        else if (Vector2.Distance(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
-                                            new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
-                        {
-                            newCollisionRec.height += tile2.Rec.height;
+                                tile2.Used = true;
+                            }
+                            else if (Vector2.Distance(new Vector2(newCollisionRec.x + newCollisionRec.width, newCollisionRec.y), 
+                                                new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
+                            {
+                                newCollisionRec.width += tile2.Rec.width;
 
-                            tile2.Used = true;
+                                tile2.Used = true;
+                            }
+                            else if (Vector2.Distance(new Vector2(newCollisionRec.x, newCollisionRec.y + newCollisionRec.height), 
+                                                new Vector2(tile2.Rec.x, tile2.Rec.y)) == 0)
+                            {
+                                newCollisionRec.height += tile2.Rec.height;
+
+                                tile2.Used = true;
+                            }
                         }
                     }
+                    
+                    tiledMap.CollideTiles.Add(newCollisionRec);
                 }
-                
-                tiledMap.CollideTiles.Add(newCollisionRec);
-            }
 
-            _tiledMaps.Add(tiledMap);
+                _tiledMaps.Add(tiledMap);
+            }
         }
 
         public void EndGame()
