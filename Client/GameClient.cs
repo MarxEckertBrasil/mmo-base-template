@@ -36,21 +36,11 @@ namespace rpg_base_template.Client
         const int IMAGE_SCALE = 4;
         const int SCREEN_WIDTH = 800;
         const int SCREEN_HEIGHT = 800;
-        const int NUM_FRAMES = 3;
         Color BACKGROUND_COLOR = BLACK;
+     
+        Rectangle _joinBtn;
+        Rectangle _hostBtn;
 
-        Texture2D _joinButton;
-        Texture2D _hostButton;
-        
-        Rectangle _joinBtnBnds;
-        Rectangle _joinBtnRec;
-
-        Rectangle _hostBtnBnds;
-        Rectangle _hostBtnRec;
-        Sound _fxButton;
-
-        int _frameHeight;
-        int _frameHeight2;
         Vector2 _mousePoint = new Vector2(0.0f, 0.0f);
 
         GameScenes _gameScenes = GameScenes.MAIN_MENU;
@@ -86,22 +76,8 @@ namespace rpg_base_template.Client
             _gameClient = new NihilNetworkClient();
             _gameServer = new NihilNetworkServer();
 
-            //Button1
-            _joinButton = LoadTexture("System/Images/Button1.png");
-
-            _frameHeight = _joinButton.height/NUM_FRAMES;
-            _joinBtnRec = new Rectangle(0, 0, _joinButton.width, _frameHeight);
-            _joinBtnBnds = new Rectangle(SCREEN_WIDTH/2 - _joinButton.width/2, SCREEN_HEIGHT/2 - _joinButton.height/NUM_FRAMES/2, _joinButton.width, _frameHeight);
-
-            _fxButton = LoadSound("System/Audio/buttonfx.wav");
-            
-            //Button2
-            _hostButton = LoadTexture("System/Images/Button1.png");
-
-            _frameHeight2 = _hostButton.height/NUM_FRAMES;
-            _hostBtnRec = new Rectangle(0, 0, _hostButton.width, _frameHeight2);
-            _hostBtnBnds = new Rectangle(SCREEN_WIDTH/2 - _hostButton.width/2, SCREEN_HEIGHT/2 - _hostButton.height/NUM_FRAMES/2 + _joinBtnBnds.height, _hostButton.width, _frameHeight2);
-
+            _joinBtn = new Rectangle(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 - 80, 200, 40);
+            _hostBtn = new Rectangle(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 - 20, 200, 40);
 
             SetTargetFPS(60);
         }
@@ -170,7 +146,7 @@ namespace rpg_base_template.Client
                             }
                         }
                         
-                        if (CheckCollisionPointRec(_mousePoint, _joinBtnBnds))
+                        if (CheckCollisionPointRec(_mousePoint, _joinBtn))
                         {
                             if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
                                 joinBtnState = 2;
@@ -183,7 +159,7 @@ namespace rpg_base_template.Client
                         else
                             joinBtnState = 0;
 
-                        if (CheckCollisionPointRec(_mousePoint, _hostBtnBnds))
+                        if (CheckCollisionPointRec(_mousePoint, _hostBtn))
                         {
                             if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
                                 hostBtnState = 2;
@@ -210,24 +186,31 @@ namespace rpg_base_template.Client
                             {
                                 inputIp = targetIp;
 
-                                PlaySound(_fxButton);
-
-                                while (IsSoundPlaying(_fxButton))
-                                {}
-
                                 _gameScenes = GameScenes.LOADING_GAME;
                             }
                         }
-
-                        _joinBtnRec.y = joinBtnState * _frameHeight;
-                        _hostBtnRec.y = hostBtnState * _frameHeight2;
 
                         BeginDrawing();
                         ClearBackground(BACKGROUND_COLOR);
 
                         DrawRectangleRec(inputIpBox, GRAY);
-                        DrawTextureRec(_joinButton, _joinBtnRec, new Vector2(_joinBtnBnds.x, _joinBtnBnds.y), WHITE);
-                        DrawTextureRec(_hostButton, _hostBtnRec, new Vector2(_hostBtnBnds.x, _hostBtnBnds.y), WHITE);
+                        
+                        if (joinBtnState == 0)
+                            DrawRectangleRec(_joinBtn, BLUE);
+                        else if (joinBtnState == 1)
+                            DrawRectangleRec(_joinBtn, PURPLE);
+                        else
+                            DrawRectangleRec(_joinBtn, PINK);
+
+                        if (hostBtnState == 0)
+                            DrawRectangleRec(_hostBtn, BLUE);
+                        else if (hostBtnState == 1)
+                            DrawRectangleRec(_hostBtn, PURPLE);
+                        else
+                            DrawRectangleRec(_hostBtn, PINK);
+
+                        DrawText("Connect", (int)(_joinBtn.x + _joinBtn.width/4), (int)(_joinBtn.y + _joinBtn.height/4), 30, BLACK);
+                        DrawText("Host", (int)(_hostBtn.x + _hostBtn.width/4), (int)(_hostBtn.y + _hostBtn.height/4), 30, BLACK);
 
                         DrawText(targetIp, (int)inputIpBox.x, (int)inputIpBox.y, 40, BLACK);
                         if (inputIpBoxSelected)
@@ -753,15 +736,11 @@ namespace rpg_base_template.Client
         }
 
         public void EndGame()
-        {
-            UnloadTexture(_joinButton);
-            
+        {           
             foreach (var tiledMap in _tiledMaps)
                 foreach (var tiledMapTexture in tiledMap.TiledMapTextures)
                     UnloadTexture(tiledMapTexture.Texture);
                  
-            UnloadSound(_fxButton);
-
             if (_isServer)
                 _gameServer.StopServer();
 
