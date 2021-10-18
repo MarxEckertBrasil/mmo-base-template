@@ -240,7 +240,7 @@ namespace rpg_base_template.Client
                                 textColor = RED;
                                 if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
                                 {
-                                    _campaignSelected = dir.Dir + "/Meta/"+MAP_NAME;
+                                    _campaignSelected = dir.Dir + "/";
                                     _gameScenes = GameScenes.LOADING_GAME;
                                 }
                             }
@@ -300,6 +300,12 @@ namespace rpg_base_template.Client
                         DrawMap(false);
                         var charactersToSelect = GetSpecificTileType("Player");
                         var indexMiddleCharacter = (int)Math.Floor((decimal)(charactersToSelect.Count() / 2) - 1 );
+                        if (indexMiddleCharacter < 0)
+                        {
+                            _gameScenes = GameScenes.MAIN_MENU;
+                            return;
+                        }
+
                         _camera.target = new Vector2 (){ X = charactersToSelect[indexMiddleCharacter].ResizedRec.x - charactersToSelect[indexMiddleCharacter].ResizedRec.width + 20.0f, 
                                                         Y = charactersToSelect[indexMiddleCharacter].ResizedRec.y - charactersToSelect[indexMiddleCharacter].ResizedRec.height + 20.0f };
                         
@@ -362,8 +368,7 @@ namespace rpg_base_template.Client
                         BeginShaderMode(_shader);
                         DrawMap();
                         EndShaderMode();
-
-                        
+            
                         DrawServerImages();
                         
                         if (_isServer)
@@ -387,13 +392,13 @@ namespace rpg_base_template.Client
                             var moveVec = new Vector2(0,0);
 
                             if (IsKeyDown(KEY_RIGHT))
-                                moveVec.X ++;
+                                moveVec.X++;
                             if (IsKeyDown(KEY_LEFT))
-                                moveVec.X --;
+                                moveVec.X--;
                             if (IsKeyDown(KEY_DOWN))
-                                moveVec.Y ++;
+                                moveVec.Y++;
                             if (IsKeyDown(KEY_UP))
-                                moveVec.Y --;   
+                                moveVec.Y--;   
 
                             _player.Position += moveVec;
 
@@ -433,7 +438,7 @@ namespace rpg_base_template.Client
         {
             if (_directories.Count == 0)
             {
-                var directories = Directory.GetDirectories("Adventure");
+                var directories = Directory.GetDirectories(TILED_PATH);
                 
                 var textPos = new Vector2(100, 100);
                 foreach (string dir in directories)
@@ -522,7 +527,10 @@ namespace rpg_base_template.Client
             {
                 int x_pos = 0;
                 int y_pos = 0;
-          
+
+                if (layer.data == null)
+                    continue;
+
                 foreach (var tile in layer.data)
                 {   
                     var tile_id = tile;
@@ -586,7 +594,10 @@ namespace rpg_base_template.Client
             {
                 int x_pos = 0;
                 int y_pos = 0;
-          
+
+                if (layer.data == null)
+                    continue;
+
                 foreach (var tile in layer.data)
                 {   
                     var tile_id = tile;
@@ -666,15 +677,15 @@ namespace rpg_base_template.Client
             return rec;
         }
 
-        public void ImportTiledMap(string mapPath)
+        public void ImportTiledMap(string campPath)
         {
-            using StreamReader mapsReader = new StreamReader(mapPath);
+            using StreamReader mapsReader = new StreamReader(campPath + "Meta/"+MAP_NAME);
             var maps = mapsReader.ReadToEnd();
             var jsonPaths = JsonSerializer.Deserialize<string[]>(maps);
 
             foreach (var path in jsonPaths)
             {
-                using StreamReader reader = new StreamReader(TILED_PATH + path);
+                using StreamReader reader = new StreamReader(TILED_PATH+path);
                 
                 string json = reader.ReadToEnd();
                 var tiledMap = JsonSerializer.Deserialize<TiledMap>(json);
@@ -685,7 +696,7 @@ namespace rpg_base_template.Client
                 //Change the logic in future for multiples tilesets
                 foreach (var tileset in tiledMap.tilesets)
                 {
-                    using StreamReader tilesetReader = new StreamReader(TILED_PATH + (tileset.source).Remove(0, 3).Remove(tileset.source.Length - 7) + ".json");
+                    using StreamReader tilesetReader = new StreamReader(campPath + (tileset.source));
                     json = tilesetReader.ReadToEnd();
                     var tiledTileset = JsonSerializer.Deserialize<TiledTileset>(json);
 
@@ -693,13 +704,15 @@ namespace rpg_base_template.Client
                     {
                         tiledTileset.x_tiles = (int)((tiledTileset.imagewidth - tiledTileset.margin*2) / tiledTileset.tilewidth);
 
+                        var splitedSource = tileset.source.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).SkipLast(1);
+                        tiledTileset.image =  string.Join("/", splitedSource) + "/" + tiledTileset.image;
                         tiledMap.TiledTilesets.Add((Firstgid: tileset.firstgid, Tileset: tiledTileset));             
                     }
                 }
                 
                 foreach (var tileTileset in tiledMap.TiledTilesets)
                 {
-                    tiledMap.TiledMapTextures.Add((Firstgid: tileTileset.Firstgid, Texture: LoadTexture(TILED_PATH + (tileTileset.Tileset.image).Remove(0, 3))));  
+                    tiledMap.TiledMapTextures.Add((Firstgid: tileTileset.Firstgid, Texture: LoadTexture(campPath + (tileTileset.Tileset.image))));  
 
                 }
 
@@ -709,7 +722,10 @@ namespace rpg_base_template.Client
                 {
                     int x_pos = 0;
                     int y_pos = 0;
-            
+
+                    if (layer.data == null)
+                        continue;
+
                     foreach (var tile in layer.data)
                     {   
                         var tile_id = tile;
