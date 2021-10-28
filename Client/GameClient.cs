@@ -14,6 +14,7 @@ using NihilNetwork;
 using System.Collections.Generic;
 using System.Net;
 using NihilNetwork.Server;
+using Client.System.Components;
 
 namespace rpg_base_template.Client
 {
@@ -39,10 +40,17 @@ namespace rpg_base_template.Client
         const int SCREEN_HEIGHT = 800;
         Color BACKGROUND_COLOR = BLACK;
      
-        Rectangle _joinBtn;
-        Rectangle _hostBtn;
+        NihilButton _joinBtn;
+        NihilButton _hostBtn;
+        NihilButton _importBtn;
 
-        Vector2 _mousePoint = new Vector2(0.0f, 0.0f);
+        NihilInputBox _inputIpBox;
+        string _inputIp;
+
+        Vector2 _mousePoint = new Vector2(0f, 0f);
+        Vector2 _camMousePos = new Vector2(0f, 0f);
+
+        bool _mouseClick = false;
 
         GameScenes _gameScenes = GameScenes.MAIN_MENU;
 
@@ -81,173 +89,42 @@ namespace rpg_base_template.Client
             _gameClient = new NihilNetworkClient();
             _gameServer = new NihilNetworkServer();
 
-            _joinBtn = new Rectangle(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 - 80, 200, 40);
-            _hostBtn = new Rectangle(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 - 20, 200, 40);
+            _joinBtn = new NihilButton(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 - 80, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
+            _joinBtn.Text = "Connect";
+
+            _hostBtn = new NihilButton(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 - 20, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
+            _hostBtn.Text = "Host";
+
+            _importBtn = new NihilButton(SCREEN_WIDTH - 200, SCREEN_WIDTH - 40, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
+            _importBtn.Text = "Import Cap";
+
+            _inputIpBox = new NihilInputBox(SCREEN_WIDTH/2 - 100, 180, 225, 50, GRAY, BLACK, 40);
+            _inputIpBox.Text = "127.0.0.1";
 
             SetTargetFPS(60);
         }
 
         public void GameLoop()
         {
-            int joinBtnState = 0;
-            int hostBtnState = 0;
-            var mouseClick = true;
-
-            var inputIp = string.Empty;
-            Rectangle inputIpBox = new Rectangle(SCREEN_WIDTH/2 - 100, 180, 225, 50);            
-            var inputIpBoxSelected = false;
-
-            var targetIp = "127.0.0.1";
-            
-            var charCount = 0;
-            var mousePos = new Vector2(0,0);
             while (!WindowShouldClose())
             {
+                _mousePoint = GetMousePosition();
+                _camMousePos = GetScreenToWorld2D(GetMousePosition(), _camera);
+
+                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    _mouseClick = true;                 
+                if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                    _mouseClick = false;
+
                 switch (_gameScenes)
                 {
                     case GameScenes.MAIN_MENU:
-                        _mousePoint = GetMousePosition();
-                        var btnAction = false;
 
-                        if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                            mouseClick = true;
-                        
-                        if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
-                            mouseClick = false;
-
-                        //Input text logic   
-                        if (CheckCollisionPointRec(_mousePoint, inputIpBox))
-                        {
-                            if (mouseClick)
-                            {
-                                inputIpBoxSelected = true;
-                            }
-                        }
-                        else if (mouseClick)
-                        {
-                            inputIpBoxSelected = false;
-                        }
-                       
-                        if (inputIpBoxSelected)
-                        {
-                            int key = GetCharPressed();
-
-                            while (key > 0)
-                            {
-                                if ((key >= 32) && (key <= 125) && (charCount < 15))
-                                {
-                                    targetIp += (char)key;
-                                    charCount++;
-                                }
-
-                                key = GetCharPressed();                            
-                            }
-
-                            if (IsKeyPressed(KEY_BACKSPACE))
-                            {
-                                charCount--;
-                                if (charCount < 0) charCount = 0;
-                                targetIp = targetIp.Substring(0, charCount);
-                            }
-                        }
-                        
-                        if (CheckCollisionPointRec(_mousePoint, _joinBtn))
-                        {
-                            if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                                joinBtnState = 2;
-                            else
-                                joinBtnState = 1;
-
-                            if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
-                                btnAction = true;
-                        }
-                        else
-                            joinBtnState = 0;
-
-                        if (CheckCollisionPointRec(_mousePoint, _hostBtn))
-                        {
-                            if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                                hostBtnState = 2;
-                            else
-                                hostBtnState = 1;
-
-                            if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
-                            {
-                                _isServer = true;
-                                btnAction = true;
-                            }
-                        }
-                        else
-                            hostBtnState = 0;
-
-                        if (btnAction)
-                        {
-                            if (_isServer)
-                                targetIp = "127.0.0.1";
-
-                            var validIp = IPAddress.TryParse(targetIp, out IPAddress addr);
-
-                            if (validIp)
-                            {
-                                inputIp = targetIp;
-
-                                _gameScenes = GameScenes.SELECT_CAMPAIGN;
-                            }
-                        }
-
-                        BeginDrawing();
-                        ClearBackground(BACKGROUND_COLOR);
-
-                        DrawRectangleRec(inputIpBox, GRAY);
-                        
-                        if (joinBtnState == 0)
-                            DrawRectangleRec(_joinBtn, BLUE);
-                        else if (joinBtnState == 1)
-                            DrawRectangleRec(_joinBtn, PURPLE);
-                        else
-                            DrawRectangleRec(_joinBtn, PINK);
-
-                        if (hostBtnState == 0)
-                            DrawRectangleRec(_hostBtn, BLUE);
-                        else if (hostBtnState == 1)
-                            DrawRectangleRec(_hostBtn, PURPLE);
-                        else
-                            DrawRectangleRec(_hostBtn, PINK);
-
-                        DrawText("Connect", (int)(_joinBtn.x + _joinBtn.width/4), (int)(_joinBtn.y + _joinBtn.height/4), 30, BLACK);
-                        DrawText("Host", (int)(_hostBtn.x + _hostBtn.width/4), (int)(_hostBtn.y + _hostBtn.height/4), 30, BLACK);
-
-                        DrawText(targetIp, (int)inputIpBox.x, (int)inputIpBox.y, 40, BLACK);
-                        if (inputIpBoxSelected)
-                            DrawRectangleLines((int)inputIpBox.x, (int)inputIpBox.y, (int)inputIpBox.width, (int)inputIpBox.height, YELLOW);
-
-                        EndDrawing();
+                        RunMainMenu();                   
                         break;
 
                     case GameScenes.SELECT_CAMPAIGN:
-                        GetDirectories();
-                        mousePos = GetMousePosition();
-
-                        BeginDrawing();
-                        ClearBackground(BACKGROUND_COLOR);
-
-                        foreach (var dir in _directories)
-                        {
-                            Color textColor = WHITE;
-
-                            if (CheckCollisionPointRec(mousePos, dir.Rec))
-                            {
-                                textColor = RED;
-                                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                                {
-                                    _campaignSelected = dir.Dir + "/";
-                                    _gameScenes = GameScenes.LOADING_GAME;
-                                }
-                            }
-                            DrawText(dir.Dir.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault(), (int)dir.Rec.x, (int)dir.Rec.y, 20, textColor);
-                        }
-                    
-                        EndDrawing();
+                        RunCampaignSelection();
 
                         break;
 
@@ -255,183 +132,310 @@ namespace rpg_base_template.Client
                         break;
 
                     case GameScenes.LOADING_GAME:
-
-                        if (_isServer)
-                            _gameServer.StartServer(1120, this, 10, true, true);
-
-                         _gameClient.Connect(inputIp, 1120, this, 5, true, true);
-
-                        //Configure first map
-                        ImportTiledMap(_campaignSelected);
-
-                        if (_tiledMaps.Count == 0)
-                        {
-                            _gameScenes = GameScenes.MAIN_MENU;
-                            break;
-                        }
-
-                        _currentTiledMap = _tiledMaps[0];
-
-                        //Load shader
-                        _shader = LoadShader("System/Shaders/gray.vs", "System/Shaders/gray.fs");
-
-                        //Load camera
-                        _camera.offset = new Vector2 (){ X = SCREEN_WIDTH/2.0f, Y = SCREEN_HEIGHT/2.0f };
-                        _camera.rotation = 0.0f;
-                        _camera.zoom = 1.0f;                     
-
-                        _gameScenes = GameScenes.SELECT_CHARACTER;
+                        RunGameLoading();
 
                         break;
 
-                    case GameScenes.SELECT_CHARACTER:
-                        if (_isServer)
-                        {
-                            _gameScenes = GameScenes.IN_GAME;
-                            continue;
-                        }
-
-                        mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);
-                        
-                        BeginDrawing();
-                        BeginMode2D(_camera);
-                        ClearBackground(BACKGROUND_COLOR);
-
-                        DrawMap(false);
-                        var charactersToSelect = GetSpecificTileType("Player");
-                        var indexMiddleCharacter = (int)Math.Floor((decimal)(charactersToSelect.Count() / 2) - 1 );
-                        if (indexMiddleCharacter < 0)
-                        {
-                            _gameScenes = GameScenes.MAIN_MENU;
-                            return;
-                        }
-
-                        _camera.target = new Vector2 (){ X = charactersToSelect[indexMiddleCharacter].ResizedRec.x - charactersToSelect[indexMiddleCharacter].ResizedRec.width + 20.0f, 
-                                                        Y = charactersToSelect[indexMiddleCharacter].ResizedRec.y - charactersToSelect[indexMiddleCharacter].ResizedRec.height + 20.0f };
-                        
-                        foreach (var character in charactersToSelect)
-                        {
-                            if (CheckCollisionPointRec(mousePos, character.ResizedRec))
-                            {
-                                DrawRectangleLines((int)(character.ResizedRec.x), (int)(character.ResizedRec.y), 
-                                                (int) character.ResizedRec.width, (int) character.ResizedRec.height, YELLOW);
-
-                                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                                {
-                                    _player.Position = new Vector2(character.ResizedRec.x + character.ResizedRec.width/2, character.ResizedRec.y + character.ResizedRec.height/2);
-                                    _player.MapId = character.MapId;
-                                    _player.TileId = character.TileId;
-                                    break;
-                                }
-                            } 
-                        }
-
-                        EndMode2D();
-
-                        DrawText("CHOOSE A CHARACTER TO START THE ADVENTURE", SCREEN_WIDTH/2 - 220, (int)_camera.target.Y - 20, 20, WHITE);
-                        
-                        EndDrawing();
-
-                        if (_player.TileId != 0 && _player.MapId != -1)
-                        {
-                            if (_player.VisionRange == 0)
-                            {
-                                _player.VisionRange = 2 * _tiledMaps[_player.MapId].tilewidth * IMAGE_SCALE;
-                            }
-
-                            _gameScenes = GameScenes.IN_GAME;
-                        }
-                        
+                    case GameScenes.SELECT_CHARACTER:                   
+                        RunCharacterSelection();             
 
                         break;
 
                     case GameScenes.IN_GAME:
-                                                     
-                        BeginDrawing();                  
-                        ClearBackground(BACKGROUND_COLOR);
-
-                        BeginMode2D(_camera);
-                        
-                        _camera.target = new Vector2 (){ X = _player.Position.X + 20.0f, Y = _player.Position.Y + 20.0f };
-
-                        //Update player in server
-                        if (_isServer)
-                            _gameClient.UpdateClientNetworkObject(_player); 
-                        else
-                        {
-                           var ranges = new Dictionary<string, NihilNetworkRange>();
-                           ranges.Add("Position", _gameClient.GetNetworkRange(NihilNetworkOperations.LESS_EQUAL, _player.VisionRange, "Position", true));
-                            
-                           _gameClient.UpdateClientNetworkObject(_player, ranges);                     
-                        }
-                        
-                        BeginShaderMode(_shader);
-                        DrawMap();
-                        EndShaderMode();
-            
-                        DrawServerImages();
-                        
-                        if (_isServer)
-                        {
-                        
-                            if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                            {
-                                mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);                             
-                            }
-                            else if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
-                            {
-                                var releasedMOusePos = GetScreenToWorld2D(GetMousePosition(), _camera);
-                                _player.Position += (mousePos - releasedMOusePos ) * 50;
-                            }
-                            else
-                                mousePos = new Vector2(0,0);
-                        }
-                        else
-                        {
-                            var playerRec = DrawPlayer();
-                            var moveVec = new Vector2(0,0);
-
-                            if (IsKeyDown(KEY_RIGHT))
-                                moveVec.X++;
-                            if (IsKeyDown(KEY_LEFT))
-                                moveVec.X--;
-                            if (IsKeyDown(KEY_DOWN))
-                                moveVec.Y++;
-                            if (IsKeyDown(KEY_UP))
-                                moveVec.Y--;   
-
-                            _player.Position += moveVec;
-
-                            var collisionAreas = GetCollisionAreas(playerRec);
-                            _player.Position += GetDirection(playerRec, collisionAreas);
-                        }
-                            
-                        EndMode2D();             
-                        EndDrawing();
-
-                        //Uncomment for use only with a server
-                        if (_isServer)
-                        {
-                            if (!_gameServer.IsServerRunning() || !_gameClient.Connection.Connected)
-                            {
-                                _isServer = false;
-                                _gameScenes = GameScenes.MAIN_MENU;
-
-                                _gameClient.Disconnect();
-                                _gameServer.StopServer();
-                            }
-                        }
-                        else if (!_gameClient.Connection.Connected)
-                        {
-                            _gameClient.Disconnect();
-                            _gameScenes = GameScenes.MAIN_MENU;
-                        }
+                        RunGame();                                                  
 
                         break;
                 }       
             }
 
             EndGame();
+        }
+
+        private void RunGame()
+        {
+            BeginDrawing();                  
+            ClearBackground(BACKGROUND_COLOR);
+
+            BeginMode2D(_camera);
+                        
+            _camera.target = new Vector2 (){ X = _player.Position.X + 20.0f, Y = _player.Position.Y + 20.0f };
+
+            //Update player in server
+            if (_isServer)
+                _gameClient.UpdateClientNetworkObject(_player); 
+            else
+            {
+                var ranges = new Dictionary<string, NihilNetworkRange>();
+                ranges.Add("Position", _gameClient.GetNetworkRange(NihilNetworkOperations.LESS_EQUAL, _player.VisionRange, "Position", true));
+                            
+                _gameClient.UpdateClientNetworkObject(_player, ranges);                     
+            }
+                        
+            BeginShaderMode(_shader);
+            DrawMap();
+            EndShaderMode();
+            
+            DrawServerImages();
+                        
+            if (_isServer)
+            {   
+                               
+                // if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                // {
+                //     mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);                             
+                // }
+                // else if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                // {
+                //     var releasedMOusePos = GetScreenToWorld2D(GetMousePosition(), _camera);
+                //     _player.Position += (mousePos - releasedMOusePos ) * 50;
+                // }
+                // else
+                //     mousePos = new Vector2(0,0);
+            }
+            else
+            {
+                var playerRec = DrawPlayer();
+                var moveVec = new Vector2(0,0);
+
+                if (IsKeyDown(KEY_RIGHT))
+                    moveVec.X++;
+                if (IsKeyDown(KEY_LEFT))
+                    moveVec.X--;
+                if (IsKeyDown(KEY_DOWN))
+                    moveVec.Y++;
+                if (IsKeyDown(KEY_UP))
+                    moveVec.Y--;   
+
+                _player.Position += moveVec;
+
+                var collisionAreas = GetCollisionAreas(playerRec);
+                _player.Position += GetDirection(playerRec, collisionAreas);
+            }
+                            
+            EndMode2D();             
+            EndDrawing();
+
+            //Uncomment for use only with a server
+            if (_isServer)
+            {
+                if (!_gameServer.IsServerRunning() || !_gameClient.Connection.Connected)
+                {
+                    _isServer = false;
+                    _gameScenes = GameScenes.MAIN_MENU;
+
+                    _gameClient.Disconnect();
+                    _gameServer.StopServer();
+                }
+            }
+            else if (!_gameClient.Connection.Connected)
+            {
+                _gameClient.Disconnect();
+                _gameScenes = GameScenes.MAIN_MENU;
+            }
+        }
+
+        private void RunCharacterSelection()
+        {
+            if (_isServer)
+            {
+                _gameScenes = GameScenes.IN_GAME;
+                return;
+            }
+
+            BeginDrawing();
+            BeginMode2D(_camera);
+            ClearBackground(BACKGROUND_COLOR);
+
+            DrawMap(false);
+            var charactersToSelect = GetSpecificTileType("Player");
+            var indexMiddleCharacter = (int)Math.Floor((decimal)(charactersToSelect.Count() / 2) - 1 );
+            if (indexMiddleCharacter < 0)
+            {
+                _gameScenes = GameScenes.MAIN_MENU;
+                return;
+            }
+
+            _camera.target = new Vector2 (){ X = charactersToSelect[indexMiddleCharacter].ResizedRec.x - charactersToSelect[indexMiddleCharacter].ResizedRec.width + 20.0f, 
+                                                        Y = charactersToSelect[indexMiddleCharacter].ResizedRec.y - charactersToSelect[indexMiddleCharacter].ResizedRec.height + 20.0f };
+                        
+            foreach (var character in charactersToSelect)
+            {
+                if (CheckCollisionPointRec(_camMousePos, character.ResizedRec))
+                {
+                    DrawRectangleLines((int)(character.ResizedRec.x), (int)(character.ResizedRec.y), 
+                                       (int) character.ResizedRec.width, (int) character.ResizedRec.height, YELLOW);
+
+                    if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    {
+                        _player.Position = new Vector2(character.ResizedRec.x + character.ResizedRec.width/2, character.ResizedRec.y + character.ResizedRec.height/2);
+                        _player.MapId = character.MapId;
+                        _player.TileId = character.TileId;
+                        break;
+                    }
+                } 
+            }
+
+            EndMode2D();
+
+            DrawText("CHOOSE A CHARACTER TO START THE ADVENTURE", SCREEN_WIDTH/2 - 220, (int)_camera.target.Y - 20, 20, WHITE);
+                        
+            EndDrawing();
+
+            if (_player.TileId != 0 && _player.MapId != -1)
+            {
+                if (_player.VisionRange == 0)
+                {
+                    _player.VisionRange = 2 * _tiledMaps[_player.MapId].tilewidth * IMAGE_SCALE;
+                }
+
+                _gameScenes = GameScenes.IN_GAME;
+            }
+        }
+
+        private void RunGameLoading()
+        {
+            if (_isServer)
+                _gameServer.StartServer(1120, this, 10, true, true);
+
+            _gameClient.Connect(_inputIp, 1120, this, 5, true, true);
+
+            //Configure first map
+            ImportTiledMap(_campaignSelected);
+
+            if (_tiledMaps.Count == 0)
+            {
+                _gameScenes = GameScenes.MAIN_MENU;
+                return;
+            }
+
+            _currentTiledMap = _tiledMaps[0];
+
+            //Load shader
+            _shader = LoadShader("System/Shaders/gray.vs", "System/Shaders/gray.fs");
+
+            //Load camera
+            _camera.offset = new Vector2 (){ X = SCREEN_WIDTH/2.0f, Y = SCREEN_HEIGHT/2.0f };
+            _camera.rotation = 0.0f;
+            _camera.zoom = 1.0f;                     
+
+            _gameScenes = GameScenes.SELECT_CHARACTER;
+        }
+
+        private void RunCampaignSelection()
+        {
+            GetDirectories();
+
+            BeginDrawing();
+            ClearBackground(BACKGROUND_COLOR);
+
+            foreach (var dir in _directories)
+            {
+                Color textColor = WHITE;
+
+                if (CheckCollisionPointRec(_mousePoint, dir.Rec))
+                {
+                    textColor = RED;
+                    if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    {
+                        _campaignSelected = dir.Dir + "/";
+                        _gameScenes = GameScenes.LOADING_GAME;
+                    }
+                }
+                DrawText(dir.Dir.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault(), (int)dir.Rec.x, (int)dir.Rec.y, 20, textColor);
+            }
+                    
+            EndDrawing();
+        }
+
+        private void RunMainMenu()
+        {
+            var btnAction = false;
+
+            //Input text logic   
+            if (CheckCollisionPointRec(_mousePoint, _inputIpBox.Rectangle))
+            {
+                if (_mouseClick)
+                {
+                    _inputIpBox.Selected = true;
+                }
+            }
+            else if (_mouseClick)
+            {
+                _inputIpBox.Selected = false;
+            }
+                       
+            if (_inputIpBox.Selected)
+            {
+                int key = GetCharPressed();
+
+                while (key > 0)
+                {
+                    if ((key >= 32) && (key <= 125) && (_inputIpBox.CharCount < 15))
+                    {
+                        _inputIpBox.Text += (char)key;
+                    }
+
+                    key = GetCharPressed();                            
+                }
+
+                if (IsKeyPressed(KEY_BACKSPACE))
+                {
+                    _inputIpBox.Text = _inputIpBox.Text.Substring(0, _inputIpBox.CharCount);
+                }
+            }
+                        
+            if (CheckCollisionPointRec(_mousePoint, _joinBtn.Rectangle))
+            {
+                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    _joinBtn.State = 2;
+                else
+                    _joinBtn.State = 1;
+
+                if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                    btnAction = true;
+            }
+            else
+                _joinBtn.State = 0;
+
+            if (CheckCollisionPointRec(_mousePoint, _hostBtn.Rectangle))
+            {
+                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    _hostBtn.State = 2;
+                else
+                    _hostBtn.State = 1;
+
+                if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                {
+                    _isServer = true;
+                    btnAction = true;
+                }
+            }
+            else
+                _hostBtn.State = 0;
+
+            if (btnAction)
+            {
+                if (_isServer)
+                    _inputIpBox.Text = "127.0.0.1";
+
+                var validIp = IPAddress.TryParse(_inputIpBox.Text, out IPAddress addr);
+
+                if (validIp)
+                {
+                    _inputIp = _inputIpBox.Text;
+
+                    _gameScenes = GameScenes.SELECT_CAMPAIGN;
+                }
+            }
+
+            BeginDrawing();
+            ClearBackground(BACKGROUND_COLOR);
+
+            _joinBtn.Draw();
+            _hostBtn.Draw();
+            _inputIpBox.Draw();
+                            
+            EndDrawing();
         }
 
         private void GetDirectories()
@@ -474,6 +478,10 @@ namespace rpg_base_template.Client
             }
 
             return direction;
+        }
+
+        private void ImportCap()
+        {
         }
 
         private List<Rectangle> GetCollisionAreas(Rectangle playerRec)
