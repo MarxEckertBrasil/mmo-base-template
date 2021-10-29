@@ -72,6 +72,7 @@ namespace rpg_base_template.Client
         //Player
         Player _player = new Player();
         Camera2D _camera = new Camera2D();
+        Vector2 _mouseDrop = new Vector2(0f, 0f);
 
         //Effects
         Shader _shader = new Shader();
@@ -280,7 +281,7 @@ namespace rpg_base_template.Client
 
                             if (!Directory.Exists(Path.GetFullPath(TILED_PATH)+fileName.Remove(fileName.Length - 4)))
                                 Directory.CreateDirectory(Path.GetFullPath(TILED_PATH)+fileName.Remove(fileName.Length - 4));
-                                
+
                             builder.ExtractCap(path.Path, Path.GetFullPath(TILED_PATH)+fileName.Remove(fileName.Length - 4), true);
 
                             _gameScenes = GameScenes.SELECT_CAMPAIGN;
@@ -335,19 +336,16 @@ namespace rpg_base_template.Client
                         
             if (_isServer)
             {   
-                // QUE COISA FEIA!!!!!!!!!!!!!
+                if (IsMouseButtonPressed(MouseButton.MOUSE_LEFT_BUTTON))
+                {
+                    _mouseDrop = GetScreenToWorld2D(_mousePoint, _camera);                       
+                }
+                else if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                {
+                    var releasePosition = GetScreenToWorld2D(_mousePoint, _camera);
 
-                // if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                // {
-                //     mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);                             
-                // }
-                // else if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
-                // {
-                //     var releasedMOusePos = GetScreenToWorld2D(GetMousePosition(), _camera);
-                //     _player.Position += (mousePos - releasedMOusePos ) * 50;
-                // }
-                // else
-                //     mousePos = new Vector2(0,0);
+                    _player.Position += (_mouseDrop - releasePosition);
+                }
             }
             else
             {
