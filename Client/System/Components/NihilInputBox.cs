@@ -33,7 +33,7 @@ namespace Client.System.Components
             if ((_fontSize == 0) || (_autoSize))
             {
                 _autoSize = true;
-                _fontSize = (int)Math.Floor(Rectangle.width / (Text.Length/1.5));
+                _fontSize = (int)Math.Floor(Rectangle.width / Text.Length);
             }
 
             DrawText(Text, (int)Rectangle.x, (int)Rectangle.y, _fontSize, _textColor);   

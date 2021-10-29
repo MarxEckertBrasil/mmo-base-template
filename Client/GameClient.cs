@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Net;
 using NihilNetwork.Server;
 using Client.System.Components;
+using LibCap;
 
 namespace rpg_base_template.Client
 {
@@ -81,7 +82,6 @@ namespace rpg_base_template.Client
 
 
         // Import Cap
-        private string _currentDirectory = Directory.GetCurrentDirectory();
         private int _dirSelection = 0;
         
         public GameClient()
@@ -114,7 +114,7 @@ namespace rpg_base_template.Client
             _upDirectory = new NihilButton(25, 100, 25, 25, BLUE, PURPLE, PINK, BLACK, 20);
             _upDirectory.Text = "^";
             _dirInputBox = new NihilInputBox((SCREEN_WIDTH - 650) /2, 100, 700, 25, GRAY, BLACK);
-            _dirInputBox.Text = _currentDirectory;
+            _dirInputBox.Text = Directory.GetCurrentDirectory();
 
             _backBtn = new NihilButton(SCREEN_WIDTH - 220, SCREEN_WIDTH - 60, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
             _backBtn.Text = "Back";
@@ -180,10 +180,10 @@ namespace rpg_base_template.Client
             BeginDrawing();                  
             ClearBackground(BACKGROUND_COLOR);
 
-            var directories = Directory.GetDirectories(_currentDirectory);
-            var files = Directory.GetFiles(_currentDirectory, ".cap");
+            var directories = Directory.GetDirectories(_dirInputBox.Text);
+            var files = Directory.GetFiles(_dirInputBox.Text, "*.cap");
 
-            _dirSelection += (int)_mouseWheel;
+            _dirSelection -= (int)_mouseWheel;
 
             if (_dirSelection < 0)
                 _dirSelection = 0;
@@ -275,12 +275,20 @@ namespace rpg_base_template.Client
                     {
                         if (path.Type == "File")
                         {
+                            var builder = new CapBuilder();
+                            var fileName = path.Path.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault();
+
+                            if (!Directory.Exists(Path.GetFullPath(TILED_PATH)+fileName.Remove(fileName.Length - 4)))
+                                Directory.CreateDirectory(Path.GetFullPath(TILED_PATH)+fileName.Remove(fileName.Length - 4));
+                                
+                            builder.ExtractCap(path.Path, Path.GetFullPath(TILED_PATH)+fileName.Remove(fileName.Length - 4), true);
+
                             _gameScenes = GameScenes.SELECT_CAMPAIGN;
                             break;
                         }
                         else
                         {
-                            _currentDirectory = path.Path;
+                            _dirInputBox.Text = path.Path;
                         }
                     }
                 }
@@ -288,7 +296,7 @@ namespace rpg_base_template.Client
 
             if (upDirAction)
             {
-                _currentDirectory = Directory.GetDirectoryRoot(_currentDirectory);
+                _dirInputBox.Text = Directory.GetParent(_dirInputBox.Text)?.FullName;
             } 
 
             if (backAction)

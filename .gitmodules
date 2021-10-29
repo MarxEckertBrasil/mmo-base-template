@@ -1,3 +1,6 @@
 [submodule "lib/NihilNetwork"]
 	path = lib/NihilNetwork
 	url = https://github.com/MarxEckertBrasil/NihilNetwork
+[submodule "lib/libcap"]
+	path = lib/libcap
+	url = https://github.com/jaderebrasil/libcap

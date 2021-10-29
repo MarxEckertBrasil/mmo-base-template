@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\lib\NihilNetwork\NihilNetwork\NihilNetwork.csproj" />
+    <ProjectReference Include="..\lib\libcap\LibCap\LibCap.csproj" />
   </ItemGroup>
 
   <ItemGroup>
