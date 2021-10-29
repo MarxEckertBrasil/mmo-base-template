@@ -22,7 +22,7 @@ namespace rpg_base_template.Client
     {
         MAIN_MENU = 0,
         SELECT_CAMPAIGN = 1,
-        LOBBY = 2,
+        IMPORT_CAMP = 2,
         LOADING_GAME = 3,
         SELECT_CHARACTER = 4,
         IN_GAME = 5,
@@ -47,8 +47,13 @@ namespace rpg_base_template.Client
         NihilInputBox _inputIpBox;
         string _inputIp;
 
+        NihilInputBox _dirInputBox;
+        NihilButton _upDirectory;
+        NihilButton _backBtn;
+
         Vector2 _mousePoint = new Vector2(0f, 0f);
         Vector2 _camMousePos = new Vector2(0f, 0f);
+        float _mouseWheel = 0f;
 
         bool _mouseClick = false;
 
@@ -74,6 +79,11 @@ namespace rpg_base_template.Client
         private List<(string Dir, Rectangle Rec)> _directories = new List<(string, Rectangle)>();
         private string _campaignSelected = string.Empty;
 
+
+        // Import Cap
+        private string _currentDirectory = Directory.GetCurrentDirectory();
+        private int _dirSelection = 0;
+        
         public GameClient()
         {
             //Bordless mode
@@ -95,11 +105,19 @@ namespace rpg_base_template.Client
             _hostBtn = new NihilButton(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 - 20, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
             _hostBtn.Text = "Host";
 
-            _importBtn = new NihilButton(SCREEN_WIDTH - 200, SCREEN_WIDTH - 40, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
-            _importBtn.Text = "Import Cap";
+            _importBtn = new NihilButton(SCREEN_WIDTH - 220, SCREEN_WIDTH - 60, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
+            _importBtn.Text = "Import";
 
             _inputIpBox = new NihilInputBox(SCREEN_WIDTH/2 - 100, 180, 225, 50, GRAY, BLACK, 40);
             _inputIpBox.Text = "127.0.0.1";
+
+            _upDirectory = new NihilButton(25, 100, 25, 25, BLUE, PURPLE, PINK, BLACK, 20);
+            _upDirectory.Text = "^";
+            _dirInputBox = new NihilInputBox((SCREEN_WIDTH - 650) /2, 100, 700, 25, GRAY, BLACK);
+            _dirInputBox.Text = _currentDirectory;
+
+            _backBtn = new NihilButton(SCREEN_WIDTH - 220, SCREEN_WIDTH - 60, 200, 40, BLUE, PURPLE, PINK, BLACK, 30);
+            _backBtn.Text = "Back";
 
             SetTargetFPS(60);
         }
@@ -110,6 +128,7 @@ namespace rpg_base_template.Client
             {
                 _mousePoint = GetMousePosition();
                 _camMousePos = GetScreenToWorld2D(GetMousePosition(), _camera);
+                _mouseWheel = GetMouseWheelMove();
 
                 if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
                     _mouseClick = true;                 
@@ -128,7 +147,9 @@ namespace rpg_base_template.Client
 
                         break;
 
-                    case GameScenes.LOBBY:
+                    case GameScenes.IMPORT_CAMP:
+                        RunCampaignImport();
+                        
                         break;
 
                     case GameScenes.LOADING_GAME:
@@ -149,6 +170,133 @@ namespace rpg_base_template.Client
             }
 
             EndGame();
+        }
+
+        private void RunCampaignImport()
+        {
+            var upDirAction = false;
+            var backAction = false;
+
+            BeginDrawing();                  
+            ClearBackground(BACKGROUND_COLOR);
+
+            var directories = Directory.GetDirectories(_currentDirectory);
+            var files = Directory.GetFiles(_currentDirectory, ".cap");
+
+            _dirSelection += (int)_mouseWheel;
+
+            if (_dirSelection < 0)
+                _dirSelection = 0;
+
+            if (_dirSelection > (directories.Count() + files.Count() - 1))
+                _dirSelection = directories.Count() + files.Count() - 1;
+
+            if (CheckCollisionPointRec(_mousePoint, _upDirectory.Rectangle))
+            {
+                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    _upDirectory.State = 2;
+                else
+                    _upDirectory.State = 1;
+
+                if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                {
+                    upDirAction = true;
+                }
+            }
+            else
+                _upDirectory.State = 0;
+
+            if (CheckCollisionPointRec(_mousePoint, _backBtn.Rectangle))
+            {
+                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    _backBtn.State = 2;
+                else
+                    _backBtn.State = 1;
+
+                if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                {
+                    backAction = true;
+                }
+            }
+            else
+                _backBtn.State = 0;
+          
+            _dirInputBox.Draw();
+            _upDirectory.Draw();
+            _backBtn.Draw();
+
+            var navigation = new List<(string Type, string Path, Rectangle Rec)>();
+
+            var pos = new Vector2(20f, 130f);
+
+            var count = 0;
+
+            foreach (var dir in directories)
+            {
+                if (count < _dirSelection)
+                {
+                    count++;
+                    continue;
+                }
+
+                var recDir = new Rectangle(pos.X, pos.Y, 30, 30);
+
+                navigation.Add(("Directory", dir, recDir));
+
+                DrawRectangleRec(recDir, YELLOW);
+                DrawText(dir.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault(), (int)pos.X + 40, (int)pos.Y + 7, 14, WHITE);
+
+                pos+= new Vector2(0, 32f);
+            }
+
+            foreach (var file in files)
+            {
+                if (count < _dirSelection)
+                {
+                    count++;
+                    continue;
+                }
+
+                var recFile = new Rectangle(pos.X, pos.Y, 30, 30);
+
+                navigation.Add(("File", file, recFile));
+
+                DrawRectangleRec(recFile, WHITE);
+                DrawText(file.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault(), (int)pos.X + 40, (int)pos.Y + 7, 14, WHITE);
+
+                pos+= new Vector2(0, 32f);
+            }
+
+            foreach (var path in navigation)
+            {
+                if (CheckCollisionPointRec(_mousePoint, path.Rec))
+                {
+                    if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                    {
+                        if (path.Type == "File")
+                        {
+                            _gameScenes = GameScenes.SELECT_CAMPAIGN;
+                            break;
+                        }
+                        else
+                        {
+                            _currentDirectory = path.Path;
+                        }
+                    }
+                }
+            }
+
+            if (upDirAction)
+            {
+                _currentDirectory = Directory.GetDirectoryRoot(_currentDirectory);
+            } 
+
+            if (backAction)
+            {
+                _gameScenes = GameScenes.SELECT_CAMPAIGN;
+            }
+
+            EndDrawing();
         }
 
         private void RunGame()
@@ -179,7 +327,8 @@ namespace rpg_base_template.Client
                         
             if (_isServer)
             {   
-                               
+                // QUE COISA FEIA!!!!!!!!!!!!!
+
                 // if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
                 // {
                 //     mousePos = GetScreenToWorld2D(GetMousePosition(), _camera);                             
@@ -323,6 +472,8 @@ namespace rpg_base_template.Client
 
         private void RunCampaignSelection()
         {
+            var importAction = false;
+
             GetDirectories();
 
             BeginDrawing();
@@ -343,7 +494,30 @@ namespace rpg_base_template.Client
                 }
                 DrawText(dir.Dir.Split(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar).LastOrDefault(), (int)dir.Rec.x, (int)dir.Rec.y, 20, textColor);
             }
-                    
+
+            if (CheckCollisionPointRec(_mousePoint, _importBtn.Rectangle))
+            {
+                if (IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
+                    _importBtn.State = 2;
+                else
+                    _importBtn.State = 1;
+
+                if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
+                {
+                    importAction = true;
+                }
+            }
+            else
+                _importBtn.State = 0;
+
+            _importBtn.Draw();
+
+            if (importAction)
+            {
+                _dirSelection = 0;
+                _gameScenes = GameScenes.IMPORT_CAMP;
+            }
+        
             EndDrawing();
         }
 
@@ -478,10 +652,6 @@ namespace rpg_base_template.Client
             }
 
             return direction;
-        }
-
-        private void ImportCap()
-        {
         }
 
         private List<Rectangle> GetCollisionAreas(Rectangle playerRec)
