@@ -370,7 +370,6 @@ namespace rpg_base_template.Client
             EndMode2D();             
             EndDrawing();
 
-            //Uncomment for use only with a server
             if (_isServer)
             {
                 if (!_gameServer.IsServerRunning() || !_gameClient.Connection.Connected)
