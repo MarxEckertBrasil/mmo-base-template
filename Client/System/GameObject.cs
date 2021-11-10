@@ -1,10 +1,9 @@
 using System.Numerics;
 using NihilNetwork;
-using Raylib_cs;
 
 namespace rpg_base_template.Client.System
 {
-    public class Player
+    public class GameObject
     {
         [NihilNetworkObjectId]
         public int ObjectId = -1;
@@ -17,7 +16,11 @@ namespace rpg_base_template.Client.System
 
         [NihilNetworkMonitored]
         public int MapId = -1; 
+
         [NihilNetworkMonitored]
         public uint TileId;
+
+        [NihilNetworkMonitored]
+        public bool Visible = true;
     }
 }

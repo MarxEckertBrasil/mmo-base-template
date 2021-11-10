@@ -70,7 +70,7 @@ namespace rpg_base_template.Client
         const uint FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
         
         //Player
-        Player _player = new Player();
+        GameObject _player = new GameObject();
         Camera2D _camera = new Camera2D();
         Vector2 _mouseDrop = new Vector2(0f, 0f);
 
@@ -319,7 +319,11 @@ namespace rpg_base_template.Client
 
             //Update player in server
             if (_isServer)
+            {
                 _gameClient.UpdateClientNetworkObject(_player); 
+
+                UpdateMapObjects();
+            }
             else
             {
                 var ranges = new Dictionary<string, NihilNetworkRange>();
@@ -385,6 +389,14 @@ namespace rpg_base_template.Client
             {
                 _gameClient.Disconnect();
                 _gameScenes = GameScenes.MAIN_MENU;
+            }
+        }
+
+        private void UpdateMapObjects()
+        {
+            foreach (var obj in _currentTiledMap.GameObjects)
+            {
+                _gameClient.UpdateClientNetworkObject(obj);
             }
         }
 
@@ -676,8 +688,11 @@ namespace rpg_base_template.Client
         {
             foreach (var netObj in _gameClient.GetServerObjects())
             {
-                var serverPlayer = _gameClient.GetClientFromNetworkObject<Player>(netObj);
-                DrawEntity(serverPlayer.TileId, serverPlayer.MapId, serverPlayer.Position);  
+                var serverObject = _gameClient.GetClientFromNetworkObject<GameObject>(netObj);
+                if (!serverObject.Visible)
+                    continue;
+
+                DrawEntity(serverObject.TileId, serverObject.MapId, serverObject.Position);  
             }
         }
 
@@ -697,6 +712,9 @@ namespace rpg_base_template.Client
 
         private void DrawEntity(uint tileId, int mapId, Vector2 position)
         {
+            if (mapId < 0)
+                return;
+                
             var tiledMap = _tiledMaps[mapId];
             var tileRec = GetTileRecById(tileId, tiledMap);
             var resizedTileRec = new Rectangle(position.X, position.Y, Math.Abs(tileRec.width * IMAGE_SCALE), Math.Abs(tileRec.height)*IMAGE_SCALE);
@@ -746,8 +764,10 @@ namespace rpg_base_template.Client
                         }
                                                 
                         var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
-
-                        var inVision = Vector2.Distance(new Vector2(resizedTileRec.x, resizedTileRec.y), _player.Position) <= _player.VisionRange;
+                        
+                        var inVision = true;
+                        if (!_isServer)
+                            inVision = Vector2.Distance(new Vector2(resizedTileRec.x, resizedTileRec.y), _player.Position) <= _player.VisionRange;
                         
                         if (inVision && activeRender)
                             EndShaderMode();                     
@@ -835,7 +855,10 @@ namespace rpg_base_template.Client
         private bool IsTileDrawable(uint tile_id)
         {
             var notDrawableTypes = new string[] { "monster", "chest", "player" };
-
+            
+            if (_isServer)
+                notDrawableTypes = new string[] { "player" };
+                
             var tileTileset = _currentTiledMap.TiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
             return !notDrawableTypes.Contains( tileTileset.Tileset.tiles.FindLast(x => x.id == ((int)tile_id - tileTileset.Firstgid))?.type.ToLowerInvariant() );
         }
@@ -874,8 +897,6 @@ namespace rpg_base_template.Client
                 var tiledMap = JsonSerializer.Deserialize<TiledMap>(json);
                 tiledMap.MapId = _tiledMaps.Count();
 
-                _tiledMaps.Add(tiledMap);
-
                 //Change the logic in future for multiples tilesets
                 foreach (var tileset in tiledMap.tilesets)
                 {
@@ -899,13 +920,53 @@ namespace rpg_base_template.Client
 
                 }
 
+                foreach (var layer in tiledMap.layers)
+                {
+                    int x_pos = 0;
+                    int y_pos = 0;
+
+                    if (layer.data == null)
+                    {
+                        if (layer.objects != null  || layer.objects.Count() == 0)
+                            continue;
+
+                        foreach (var obj in layer.objects)
+                        {
+                            if (!obj.type.ToLowerInvariant().Contains("door"))
+                                continue;
+
+                            tiledMap.MapDoors.Add((obj.id, obj.type, new Rectangle((int)obj.x, (int)obj.y, (int)obj.width, (int)obj.height)));
+                        }
+
+                        continue;
+                    }
+
+                    foreach (var tile in layer.data)
+                    {   
+                        var tile_id = tile;
+                        tile_id &= ~(FLIPPED_HORIZONTALLY_FLAG |
+                                    FLIPPED_VERTICALLY_FLAG   |
+                                    FLIPPED_DIAGONALLY_FLAG   );
+                        
+                        if (tile_id > 0 && IsTileAGameObject(tile_id, tiledMap))    
+                            tiledMap.GameObjects.Add(new GameObject() { MapId = tiledMap.MapId, TileId = tile_id, Visible = false});
+                        
+                        x_pos++;
+                        if (x_pos >= layer.width)
+                        {
+                            x_pos = 0;
+                            y_pos++;
+                        }
+                    }
+                }
+
                 //Load Collides
                 var collideTiles = new List<CollisionTile>();
                 foreach (var layer in tiledMap.layers)
                 {
                     int x_pos = 0;
                     int y_pos = 0;
-
+                    
                     if (layer.data == null)
                         continue;
 
@@ -995,6 +1056,14 @@ namespace rpg_base_template.Client
             }
         }
 
+        private bool IsTileAGameObject(uint tile_id, TiledMap tiledMap)
+        {
+            var notDrawableTypes = new string[] { "monster", "chest" };
+                        
+            var tileTileset = tiledMap.TiledTilesets.LastOrDefault(x => tile_id >= x.Firstgid);
+            return notDrawableTypes.Contains( tileTileset.Tileset.tiles.FindLast(x => x.id == ((int)tile_id - tileTileset.Firstgid))?.type.ToLowerInvariant() );
+        }
+
         public void EndGame()
         {           
             foreach (var tiledMap in _tiledMaps)
@@ -1008,8 +1077,5 @@ namespace rpg_base_template.Client
             CloseAudioDevice();
             CloseWindow();
         }
-        public void RegisterNetworkFunctions(NihilNetworkClient gameclient)
-        {
-        } 
     }
 }
