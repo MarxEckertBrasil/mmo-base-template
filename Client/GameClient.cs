@@ -72,7 +72,7 @@ namespace rpg_base_template.Client
         //Player
         GameObject _player = new GameObject();
         Camera2D _camera = new Camera2D();
-        Vector2 _mouseDrop = new Vector2(0f, 0f);
+        Vector2 _mouseDrag = new Vector2(0f, 0f);
 
         //Effects
         Shader _shader = new Shader();
@@ -342,13 +342,28 @@ namespace rpg_base_template.Client
             {   
                 if (IsMouseButtonPressed(MouseButton.MOUSE_LEFT_BUTTON))
                 {
-                    _mouseDrop = GetScreenToWorld2D(_mousePoint, _camera);                       
+                    _mouseDrag = GetScreenToWorld2D(_mousePoint, _camera);                       
                 }
                 else if (IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON))
                 {
                     var releasePosition = GetScreenToWorld2D(_mousePoint, _camera);
 
-                    _player.Position += (_mouseDrop - releasePosition);
+                    _player.Position += (_mouseDrag - releasePosition);
+
+                    var scaledSize = new Vector2(_currentTiledMap.width * _currentTiledMap.tilewidth * IMAGE_SCALE, 
+                                                _currentTiledMap.height * _currentTiledMap.tileheight * IMAGE_SCALE);
+
+                    if (_player.Position.X > (scaledSize.X + 200))
+                        _player.Position.X = scaledSize.X + 200;
+
+                    if (_player.Position.X < (-scaledSize.X/3))
+                        _player.Position.X = -scaledSize.X/3;
+                    
+                    if (_player.Position.Y > (scaledSize.Y + 200))
+                        _player.Position.Y = scaledSize.Y + 200;
+
+                    if (_player.Position.Y < (-scaledSize.Y/3))
+                        _player.Position.Y = -scaledSize.Y/3;
                 }
             }
             else
@@ -948,8 +963,17 @@ namespace rpg_base_template.Client
                                     FLIPPED_VERTICALLY_FLAG   |
                                     FLIPPED_DIAGONALLY_FLAG   );
                         
-                        if (tile_id > 0 && IsTileAGameObject(tile_id, tiledMap))    
-                            tiledMap.GameObjects.Add(new GameObject() { MapId = tiledMap.MapId, TileId = tile_id, Visible = false});
+                        if (tile_id > 0 && IsTileAGameObject(tile_id, tiledMap))
+                        {
+                            var posVec = new Vector2(x_pos*tiledMap.tilewidth, y_pos*tiledMap.tileheight);
+                            
+                            var tileRec = tile_id == 0 ? new Rectangle() { width = tiledMap.tilewidth, height = tiledMap.tileheight} : GetTileRecById(tile_id, tiledMap);
+                                        
+                            var resizedTileRec = new Rectangle(posVec.X*IMAGE_SCALE, posVec.Y*IMAGE_SCALE, Math.Abs(tileRec.width)*IMAGE_SCALE, Math.Abs(tileRec.height)*IMAGE_SCALE);
+                                                
+                            tiledMap.GameObjects.Add(new GameObject() { MapId = tiledMap.MapId, TileId = tile_id, Visible = false, 
+                                            Position = new Vector2(resizedTileRec.x, resizedTileRec.y), Size = new Vector2(resizedTileRec.width, resizedTileRec.height)});
+                        }
                         
                         x_pos++;
                         if (x_pos >= layer.width)

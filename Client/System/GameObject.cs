@@ -12,6 +12,9 @@ namespace rpg_base_template.Client.System
         public Vector2 Position = new Vector2(0, 0);
 
         [NihilNetworkMonitored]
+        public Vector2 Size = new Vector2(0,0);
+        
+        [NihilNetworkMonitored]
         public float VisionRange;
 
         [NihilNetworkMonitored]
